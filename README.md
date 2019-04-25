@@ -2,12 +2,12 @@
 #### Framework for Multi Layer Control in Python
 -------------------------------------------------------------------------
 
-This package is developed to serve as a framework for control applications (building automation, energy management, electric vehicle fleet aggregation, etc.). In particular, this framework is built to handle the parallelization, timing/triggering, data logging, and error handling of controller sub-modules.
+This package is developed to serve as a framework for control applications (building automation, energy management, electric vehicle fleet aggregation, etc.). In particular, this framework is built to handle the parallelization, timing/triggering, data logging, and error handling of multiple controller modules.
 
 ## General
-This package is developed as a framework/backend for multi-layer and multi-time domain controller. One example application are advanced controller based on [Model Predictive Control](https://en.wikipedia.org/wiki/Model_predictive_control) (MPC) where different sub-modules (i.e. weather forecast, energy management, real-time control), with different time constants, have to be coordinated. The framework allows parallelization using the `multiprocessing` module in Python. The package was tested under Python 2.7 (single and parallel structure) and Python 3.7 (only single structure).
+This package is developed as a framework/backend for multi-layer and multi-time domain controller. One example application are advanced controller based on [Model Predictive Control](https://en.wikipedia.org/wiki/Model_predictive_control) (MPC) where different sub-modules (i.e. weather forecast, energy management, real-time control), with different time constants, have to be coordinated. This framework allows parallelization using the `multiprocessing` module in Python. The FMLC package was tested under Python 2.7 (single and parallel structure) and Python 3.7 (only single structure).
 
-*Please note that the package and FMLC especially the examples are still under development. Please open an issue for specific quesitons*
+*Please note that the FMLC package and especially the examples are still under development. Please open an issue for specific questions*
 
 ## Getting Started
 The following link permits users to clone the source directory containing the [FMLC](https://github.com/LBNL-ETA/FMLC) package.
@@ -17,7 +17,7 @@ The package only depends on modules from the Python Standard Library.
 ## Example
 To illustrate its functionality, the FMLC package ships with an example Jupyter notebook, which can be found [here](Examples).
 
-[Test 1](Examples/Test1.ipynb) is a simple component test which also demonstrated the functionality. Please note that in order to work properly on Windows, the notebook must be exported to Python code.
+[Test 1](Examples/Test1.ipynb) is a simple component test which also demonstrates the functionality of FMLC. Please note that in order to work properly on Windows, the notebook must be exported to Python code.
 
 Another application example can be found [here](https://github.com/LBNL-ETA/DOPER) where FMLC is used to coordiante MPC controls on three differernt time domains:
 * Day-ahead control: invoked once per day; complex model
