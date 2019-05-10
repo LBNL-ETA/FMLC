@@ -3,14 +3,14 @@
 try:
     # For Python 3.0 and later
     from socketserver import TCPServer
-except ModuleNotFoundError:
+except ImportError:
     # Fall back to Python 2
     from SocketServer import TCPServer
     
 try:
     # For Python 3.0 and later
     from http.server import BaseHTTPRequestHandler
-except ModuleNotFoundError:
+except ImportError:
     # Fall back to Python 2
     from BaseHTTPServer import BaseHTTPRequestHandler
 

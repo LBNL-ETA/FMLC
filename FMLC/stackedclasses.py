@@ -50,10 +50,7 @@ def control_worker(wid, name, now, db_address, debug, inputs, ctrl):
     
 def initialize_class(ctrl, data):
     ctrl.update_storage(data, init=True)
-    
-    
 
-    
 class controller_stack(object):
     def __init__(self, controller, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False):
         self.controller = controller
@@ -169,39 +166,53 @@ class controller_stack(object):
             #print (self.data_db['executed_controller'])
             #print 'DB executed controller', self.data_db['executed_controller'], \
             #    'DB running controller', self.data_db['running_controller']
-            name = self.execution_list[task]['controller'][0]
-            if not self.execution_list[task]['running'] and now >= self.execution_list[task]['next']:
-                #print (name, 'Start')
-                # Not running, start task
-                self.execution_list[task]['running'] = True
-                self.execution_list[task]['next'] = now + self.controller[self.execution_list[task]['controller'][0]]['sampletime']
-                # Do control
-                ctrl = self.controller[name]
-                self.do_control(name, ctrl, now, parallel=self.parallel)
-            elif self.execution_list[task]['running']:
-                if self.execution_list[task]['controller'][-1] in self.data_db['executed_controller']:
-                    # Control option done
-                    self.data_db['executed_controller'].remove(self.execution_list[task]['controller'][-1])
-                    write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
-                    self.execution_list[task]['running'] = False
-                else:
-                    # Check if next module to start
-                    temp_name = []
-                    for n in self.execution_list[task]['controller']:
-                        if n in self.data_db['executed_controller']:
-                            temp_name.append(n)
-                    if len(temp_name) == 1:
-                        subtask_id = self.execution_list[task]['controller'].index(temp_name[0])
-                        self.data_db['executed_controller'].remove(temp_name[0])
+            i = 0
+            queued = True
+            # Updated on 2019/05/10: The main loop for execution is now handled by this while loop instead of the main trigger.
+            while queued:
+                if not self.execution_list[task]['running'] and now >= self.execution_list[task]['next']:
+                    name = self.execution_list[task]['controller'][0]
+                    #print (name, 'Start')
+                    # Not running, start task
+                    self.execution_list[task]['running'] = True
+                    self.execution_list[task]['next'] = now + self.controller[self.execution_list[task]['controller'][0]]['sampletime']
+                    # Do control
+                    logger.debug('Executing Controller "{!s}"'.format(name))
+                    ctrl = self.controller[name]
+                    self.do_control(name, ctrl, now, parallel=self.parallel)
+                    if not self.parallel:
+                        queued = True
+                    else:
+                        queued = False
+                elif self.execution_list[task]['running']:
+                    if self.execution_list[task]['controller'][-1] in self.data_db['executed_controller']:
+                        # Control option done
+                        self.data_db['executed_controller'].remove(self.execution_list[task]['controller'][-1])
                         write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
-                        ctrl = self.controller[self.execution_list[task]['controller'][subtask_id+1]]
-                        self.do_control(self.execution_list[task]['controller'][subtask_id+1], ctrl, now, parallel=self.parallel)
-                    elif len(temp_name) > 1:
-                        warnings.warn('Multiple entiries of Controller in executed: {}. Resetting controller.'.format(temp_name), Warning)
+                        self.execution_list[task]['running'] = False
+                    else:
+                        # Check if next module to start
+                        temp_name = []
                         for n in self.execution_list[task]['controller']:
                             if n in self.data_db['executed_controller']:
-                                self.data_db['executed_controller'].remove(temp_name)
-                        write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
+                                temp_name.append(n) # Store executed controller in list
+                        if len(temp_name) == 1: # If one controller in list then next one to be spawn
+                            subtask_id = self.execution_list[task]['controller'].index(temp_name[0])
+                            self.data_db['executed_controller'].remove(temp_name[0]) # Clear the execution list
+                            write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
+                            name = self.execution_list[task]['controller'][subtask_id+1]
+                            ctrl = self.controller[name]
+                            logger.debug('Executing Controller "{!s}"'.format(name))
+                            self.do_control(name, ctrl, now, parallel=self.parallel)
+                        elif len(temp_name) > 1:
+                            warnings.warn('Multiple entiries of Controller in executed: {}. Resetting controller.'.format(temp_name), Warning)
+                            for n in self.execution_list[task]['controller']:
+                                if n in self.data_db['executed_controller']:
+                                    self.data_db['executed_controller'].remove(temp_name)
+                            write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
+                else:
+                    queued = False
+                i += 1
         #self.init = False
         #if self.debug: print 'Duration query_control:',time.time()-time_st
             
