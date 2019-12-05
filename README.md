@@ -15,9 +15,11 @@ The following link permits users to clone the source directory containing the [F
 The package only depends on modules from the Python Standard Library.
 
 ## Example
-To illustrate its functionality, the FMLC package ships with an example Jupyter notebook, which can be found [here](Examples).
+To illustrate and test its functionality, each module executes some tests, when called as *main*.
 
-[Test 1](Examples/Test1.ipynb) is a simple component test which also demonstrates the functionality of FMLC. Please note that in order to work properly on Windows, the notebook must be exported to Python code.
+The `python triggering.py` command provides an example of the interal triggering of modules, while the `python baseclasses.py` command provides a simple example of a full controller.
+
+Further, and example Jupyter notebook can be found [here](Examples) where a full controller stack, with different time constants, is illustrated. Please note that in order to work properly on Windows, the notebook must be exported to Python code.
 
 Another application example can be found [here](https://github.com/LBNL-ETA/DOPER) where FMLC is used to coordiante MPC controls on three differernt time domains:
 * Day-ahead control: invoked once per day; complex model
