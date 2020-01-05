@@ -94,6 +94,8 @@ class eFMU(object):
         if keys == []:
             return self.output
         else:
+            if isinstance(keys, str):
+                keys = [keys]
             out = {}
             for k in keys:
                 if k in self.output.keys():
