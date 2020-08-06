@@ -156,8 +156,9 @@ class eFMU(object):
         ------
         value (float or str): The value of the variable.
         '''
-        exec('x = self.'+name)
-        return x
+        l = locals()
+        exec('x = self.'+name, globals(), l)
+        return l['x']
         
 if __name__ == '__main__':
     print('This is an example controller in form of: c = a * b')

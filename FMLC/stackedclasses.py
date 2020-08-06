@@ -7,7 +7,7 @@ from copy import deepcopy as copy_dict
 import logging
 import traceback
 
-from pythonDB.utility import PythonDB_wrapper, write_db, read_db
+from .pythonDB.utility import PythonDB_wrapper, write_db, read_db
 
 import multiprocessing as mp
 #from multiprocessing import Process, Manager
