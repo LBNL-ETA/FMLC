@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 
 import time
+import warnings
+
 import pandas as pd
 import numpy as np
 from copy import deepcopy as copy_dict
@@ -38,7 +40,7 @@ def control_worker(wid, name, now, db_address, debug, inputs, ctrl):
         temp['log'][now] = [temp['log'][now]]
     temp['output'] = {}
     temp['output'][now] = copy_dict(ctrl.get_var('output'))
-    temp['last'] = {}
+    # temp['last'] = {}
     temp['last'] = now
     ctrl.update_storage(temp)
     log_to_db(name, temp, now, db_address)
@@ -53,6 +55,27 @@ def initialize_class(ctrl, data):
 
 class controller_stack(object):
     def __init__(self, controller, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False):
+        """
+        Initialize the controller stack object.
+
+        Input
+        -----
+        controller(dict): A dictionary of dictionaries.
+                        example:
+                        {
+                        'forecast1': {'fun':testcontroller2, 'sampletime':1}
+                        'mpc1': {'fun':testcontroller3, 'sampletime':'forecast1'}
+                        'control1': {'fun':testcontroller1, 'sampletime':'mpc1'}
+                        'forecast2': {'fun':testcontroller2, 'sampletime':1}
+                        'forecast3': {'fun':testcontroller1, 'sampletime':2}
+                        }
+
+        tz(int): utc/GMT time zone
+        debug(bool)
+        name(str)
+        parallel(bool)
+        debug_db(bool)
+        """
         self.controller = controller
         self.tz = tz
         self.debug = debug
@@ -62,13 +85,42 @@ class controller_stack(object):
         #self.init = True
 
     def initialize(self, mapping, now=time.time()):
+        """
+        A function to call initializers of the pythonDB, controller, mapping, and execution list.
+
+        Input
+        -----
+        mapping(dict): Mapping of the inputs to the controllers' input variables.
+            example:
+                mapping['forecast1_a'] = 10
+                mapping['forecast1_b'] = 4
+                mapping['forecast2_a'] = 20
+                mapping['forecast2_b'] = 4
+                mapping['forecast3_a'] = 30
+                mapping['forecast3_b'] = 4
+                mapping['mpc1_a'] = 'forecast1_c'
+                mapping['mpc1_b'] = 'forecast1_a'
+                mapping['control1_a'] = 'mpc1_c'
+                mapping['control1_b'] = 'mpc1_a'
+        now(float): The time in seconds since the epoch.
+        """
         self.db_mode = 'pythonDB'
         self.initialize_controller(now)
         self.initialize_database()
         self.initialize_mapping(mapping)
         self.generate_execution_list()
-        
-    def initialize_controller(self, now):     
+
+
+    def initialize_controller(self, now):
+        """
+        Initialize the controllers.
+
+        Input
+        -----
+        now(float): The time in seconds since the epoch.
+
+        """
+        # Modify self.controllers to contain more information. Register the controllers on the BaseManager.
         for name, ctrl in self.controller.items():
             logger.debug('Add {} to BaseManager'.format(name))
             exec("BaseManager.register(name, ctrl['fun'])")
@@ -85,7 +137,8 @@ class controller_stack(object):
             self.controller[name] = ctrl
         manager = BaseManager()
         manager.start()
-        
+
+        # Initialize each controller's data storage with the enriched self.controller dictionaries.
         self.controller_objects = {}
         for name in list(self.controller.keys()):
             # Register controller processes
@@ -93,8 +146,13 @@ class controller_stack(object):
             # Initialize controller
             mp.Process(target=initialize_class, args=[self.controller_objects[name], self.controller[name]]).start()
         logger.debug(self.controller_objects)
-            
+
     def initialize_database(self):
+        """
+        Initialize the database columns. Columns include input & output variables for each device, timezone, dev_debug,
+        dev_nodename, and dev_parallel.
+
+        """
         self.database = PythonDB_wrapper(self.name, self.db_mode)
         self.database.address = '127.0.0.1:'+str(self.database.port)
         db_columns = {}
@@ -109,8 +167,11 @@ class controller_stack(object):
         db_columns['dev_parallel'] = self.parallel
         write_db(db_columns, self.database.address)
         logger.debug('SetupDB\n', read_db(self.database.address))
-            
+
     def initialize_mapping(self, mapping):
+        """
+        Validate the input mapping.
+        """
         m = list(mapping.keys())
         for name in sorted(self.controller.keys()):
             for c in self.controller[name]['inputs']:
@@ -121,12 +182,24 @@ class controller_stack(object):
         self.mapping = mapping
             
     def refresh_device_from_db(self):
+        """
+        refresh self.tz, self.debug, self.name from db
+        """
         self.tz = int(self.data_db['timezone'])
         self.debug = bool(self.data_db['dev_debug'])
         self.name = str(self.data_db['dev_nodename'])
         #self.parallel = bool(self.data_db['dev_parallel'])
         
     def generate_execution_list(self):
+        """
+        Generate self.execution_list and self.execution_map.
+
+        self.execution_list is a map of dictionaries. The keys are index numbers, and the values are dictionaries
+        which the controllers with the same sample times are in the same dictionary.
+
+        self.execution_map is a dictionary with controller names being the keys and the index of the dictionary which
+        contains the controller in self.execution_list being the values.
+        """
         self.execution_list = {}
         self.execution_map = {}
         all_controller = sorted(self.controller.keys())
@@ -170,6 +243,7 @@ class controller_stack(object):
             queued = True
             # Updated on 2019/05/10: The main loop for execution is now handled by this while loop instead of the main trigger.
             while queued:
+                # CASE1: task is not running and a new step is needed.
                 if not self.execution_list[task]['running'] and now >= self.execution_list[task]['next']:
                     name = self.execution_list[task]['controller'][0]
                     #print (name, 'Start')
@@ -180,11 +254,12 @@ class controller_stack(object):
                     logger.debug('Executing Controller "{!s}"'.format(name))
                     ctrl = self.controller[name]
                     self.do_control(name, ctrl, now, parallel=self.parallel)
-                    if not self.parallel:
-                        queued = True
-                    else:
+                    if self.parallel:
                         queued = False
+                    else:
+                        queued = True
                 elif self.execution_list[task]['running']:
+                    # CASE2: all subtasks in the task are already executed
                     if self.execution_list[task]['controller'][-1] in self.data_db['executed_controller']:
                         # Control option done
                         self.data_db['executed_controller'].remove(self.execution_list[task]['controller'][-1])
@@ -196,6 +271,7 @@ class controller_stack(object):
                         for n in self.execution_list[task]['controller']:
                             if n in self.data_db['executed_controller']:
                                 temp_name.append(n) # Store executed controller in list
+                        # Seems like we assumed the data_db['executed_controller'] is up-to-date here
                         if len(temp_name) == 1: # If one controller in list then next one to be spawn
                             subtask_id = self.execution_list[task]['controller'].index(temp_name[0])
                             self.data_db['executed_controller'].remove(temp_name[0]) # Clear the execution list
@@ -210,13 +286,21 @@ class controller_stack(object):
                                 if n in self.data_db['executed_controller']:
                                     self.data_db['executed_controller'].remove(temp_name)
                             write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
+                    queued = not self.parallel
                 else:
                     queued = False
-                i += 1
         #self.init = False
         #if self.debug: print 'Duration query_control:',time.time()-time_st
             
     def do_control(self, name, ctrl, now, parallel=False):
+        """
+        Input
+        -----
+        name(str)
+        ctrl(dict)
+        now(float)
+        parallel(bool)
+        """
         #self.controller.keys():
         #print self.controller_objects
         #print ('Doctrl', name)
@@ -242,6 +326,9 @@ class controller_stack(object):
             write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
                 
     def update_inputs(self, name, now):
+        """
+        Returns a mapping of the inputs of the given controller based on self.mapping
+        """
         self.read_from_db()
         #self.data_db = read_db(self.database.address)
         #self.refresh_device_from_db()
@@ -277,7 +364,7 @@ class controller_stack(object):
         dfs = {}
         for name, ctrl in controller.items():
             if self.parallel:
-                print (name)
+                # print (name)
                 ctrl = copy_dict(self.controller_objects[name].get_var('storage'))
             if len(ctrl['log']) > 0:
                 init = True

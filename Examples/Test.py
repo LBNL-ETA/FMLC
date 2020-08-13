@@ -125,7 +125,7 @@ class testcontroller3(eFMU):
 # In[ ]:
 
 
-if __name__ == '__main__' and False:
+if __name__ == '__main__':
     controller = {}
     controller['forecast1'] = {'fun':testcontroller2, 'sampletime':1}
     controller['mpc1'] = {'fun':testcontroller3, 'sampletime':'forecast1'}
@@ -154,7 +154,7 @@ if __name__ == '__main__' and False:
         #if i == 2: controller.set_input({'ctrl1_b':10})
         #if i == 4: print controller.log_to_df(which=['input'])['ctrl1']; controller.clear_logs(); print 'Clear Logs'
         controller.query_control(time.time())
-        if i <= 3: print (i, controller.data_db['mpc1_c'], controller.data_db['control1_c'])
+        # if i <= 3: print (i, controller.data_db['mpc1_c'], controller.data_db['control1_c'])
         #print datetime.now(), 'DB executed controller', controller.data_db['executed_controller'], \
         #        'DB running controller', controller.data_db['running_controller']
         print ('.')
