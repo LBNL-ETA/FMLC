@@ -40,7 +40,6 @@ def control_worker(wid, name, now, db_address, debug, inputs, ctrl):
         temp['log'][now] = [temp['log'][now]]
     temp['output'] = {}
     temp['output'][now] = copy_dict(ctrl.get_var('output'))
-    # temp['last'] = {}
     temp['last'] = now
     ctrl.update_storage(temp)
     log_to_db(name, temp, now, db_address)
@@ -49,6 +48,7 @@ def control_worker(wid, name, now, db_address, debug, inputs, ctrl):
     db['running_controller'].remove(name)
     write_db({'executed_controller':db['executed_controller'], \
               'running_controller':db['running_controller']}, db_address)
+    print('enter control_worker: ', name)
     
 def initialize_class(ctrl, data):
     ctrl.update_storage(data, init=True)
@@ -239,7 +239,6 @@ class controller_stack(object):
             #print (self.data_db['executed_controller'])
             #print 'DB executed controller', self.data_db['executed_controller'], \
             #    'DB running controller', self.data_db['running_controller']
-            i = 0
             queued = True
             # Updated on 2019/05/10: The main loop for execution is now handled by this while loop instead of the main trigger.
             while queued:
@@ -271,7 +270,6 @@ class controller_stack(object):
                         for n in self.execution_list[task]['controller']:
                             if n in self.data_db['executed_controller']:
                                 temp_name.append(n) # Store executed controller in list
-                        # Seems like we assumed the data_db['executed_controller'] is up-to-date here
                         if len(temp_name) == 1: # If one controller in list then next one to be spawn
                             subtask_id = self.execution_list[task]['controller'].index(temp_name[0])
                             self.data_db['executed_controller'].remove(temp_name[0]) # Clear the execution list
@@ -286,7 +284,6 @@ class controller_stack(object):
                                 if n in self.data_db['executed_controller']:
                                     self.data_db['executed_controller'].remove(temp_name)
                             write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
-                    queued = not self.parallel
                 else:
                     queued = False
         #self.init = False
@@ -313,9 +310,12 @@ class controller_stack(object):
             #print self.controller
             #data = self.controller[name]
             ctrl = self.controller_objects[name]
-            mp.Process(target=control_worker, args=[1, name, now, self.database.address, self.debug, inputs, ctrl]).start()
+            p = mp.Process(target=control_worker, args=[1, name, now, self.database.address, self.debug, inputs, ctrl])
+            p.start()
             self.data_db['running_controller'].append(name)
             write_db({'running_controller':self.data_db['running_controller']}, self.database.address)
+            p.join()
+            print(name, " returned from do_control")
         else:
             ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
             ctrl['output'][now] = copy_dict(ctrl['fun'].output)

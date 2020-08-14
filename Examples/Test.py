@@ -157,8 +157,8 @@ if __name__ == '__main__':
         # if i <= 3: print (i, controller.data_db['mpc1_c'], controller.data_db['control1_c'])
         #print datetime.now(), 'DB executed controller', controller.data_db['executed_controller'], \
         #        'DB running controller', controller.data_db['running_controller']
-        print ('.')
-        print ('\033[F')
+        # print ('.')
+        # print ('\033[F')
         time.sleep(0.1)
 
 
