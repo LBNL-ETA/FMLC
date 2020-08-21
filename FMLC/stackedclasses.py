@@ -4,16 +4,12 @@ import time
 import warnings
 
 import pandas as pd
-import numpy as np
 from copy import deepcopy as copy_dict
 import logging
-import traceback
 
 from .pythonDB.utility import PythonDB_wrapper, write_db, read_db
 
 import multiprocessing as mp
-#from multiprocessing import Process, Manager
-#from multiprocessing import Process
 from multiprocessing.managers import BaseManager
 
 # Setup logger
@@ -28,7 +24,7 @@ def log_to_db(name, ctrl, now, db_address):
         temp[name+'_'+k] = v
     write_db(temp, db_address)
 
-def control_worker(wid, name, now, db_address, debug, inputs, ctrl):
+def control_worker(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller):
     #logger.debug('WORKER {!s} at {!s} with PID {!s} ctrl is {!s}'.format(name, now, mp.current_process(), ctrl))
     # Compute controller
     temp = {}
@@ -43,12 +39,9 @@ def control_worker(wid, name, now, db_address, debug, inputs, ctrl):
     temp['last'] = now
     ctrl.update_storage(temp)
     log_to_db(name, temp, now, db_address)
-    db = read_db(db_address)
-    db['executed_controller'].append(name)
-    db['running_controller'].remove(name)
-    write_db({'executed_controller':db['executed_controller'], \
-              'running_controller':db['running_controller']}, db_address)
-    print('enter control_worker: ', name)
+    executed_controller.add(name)
+    running_controller.remove(name)
+    #print('return control_worker: ', name)
     
 def initialize_class(ctrl, data):
     ctrl.update_storage(data, init=True)
@@ -136,7 +129,11 @@ class controller_stack(object):
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
         manager = BaseManager()
+        manager.register('MyList', MyList)
+        manager.register('MyList', MyList)
         manager.start()
+        self.running_controllers = manager.MyList()
+        self.executed_controllers = manager.MyList()
 
         # Initialize each controller's data storage with the enriched self.controller dictionaries.
         self.controller_objects = {}
@@ -224,28 +221,17 @@ class controller_stack(object):
         if self.debug:
             logger.debug('Execution list: {!s}'.format(self.execution_list))
             logger.debug('Execution map: {!s}'.format(self.execution_map))
-        write_db({'executed_controller':[],'running_controller':[]}, self.database.address)                
         
     def query_control(self, now, return_db=False):
-        #time_st = time.time()
-        #self.data_db = read_db(self.database.address)
-        #self.refresh_device_from_db()
-        #if self.debug: print 'ReadDB\n', self.data_db
-        #if self.init:
-        #    self.query_control_initial(now)
-        #else:
         self.read_from_db()
         for task in sorted(self.execution_list.keys()):
-            #print (self.data_db['executed_controller'])
-            #print 'DB executed controller', self.data_db['executed_controller'], \
-            #    'DB running controller', self.data_db['running_controller']
             queued = True
             # Updated on 2019/05/10: The main loop for execution is now handled by this while loop instead of the main trigger.
             while queued:
+                # self.read_from_db()
                 # CASE1: task is not running and a new step is needed.
                 if not self.execution_list[task]['running'] and now >= self.execution_list[task]['next']:
                     name = self.execution_list[task]['controller'][0]
-                    #print (name, 'Start')
                     # Not running, start task
                     self.execution_list[task]['running'] = True
                     self.execution_list[task]['next'] = now + self.controller[self.execution_list[task]['controller'][0]]['sampletime']
@@ -259,21 +245,19 @@ class controller_stack(object):
                         queued = True
                 elif self.execution_list[task]['running']:
                     # CASE2: all subtasks in the task are already executed
-                    if self.execution_list[task]['controller'][-1] in self.data_db['executed_controller']:
+                    if self.executed_controllers.contains(self.execution_list[task]['controller'][-1]):
                         # Control option done
-                        self.data_db['executed_controller'].remove(self.execution_list[task]['controller'][-1])
-                        write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
+                        self.executed_controllers.remove(self.execution_list[task]['controller'][-1])
                         self.execution_list[task]['running'] = False
                     else:
                         # Check if next module to start
                         temp_name = []
                         for n in self.execution_list[task]['controller']:
-                            if n in self.data_db['executed_controller']:
+                            if self.executed_controllers.contains(n):
                                 temp_name.append(n) # Store executed controller in list
                         if len(temp_name) == 1: # If one controller in list then next one to be spawn
                             subtask_id = self.execution_list[task]['controller'].index(temp_name[0])
-                            self.data_db['executed_controller'].remove(temp_name[0]) # Clear the execution list
-                            write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
+                            self.executed_controllers.remove(temp_name[0]) # Clear the execution list
                             name = self.execution_list[task]['controller'][subtask_id+1]
                             ctrl = self.controller[name]
                             logger.debug('Executing Controller "{!s}"'.format(name))
@@ -281,9 +265,9 @@ class controller_stack(object):
                         elif len(temp_name) > 1:
                             warnings.warn('Multiple entiries of Controller in executed: {}. Resetting controller.'.format(temp_name), Warning)
                             for n in self.execution_list[task]['controller']:
-                                if n in self.data_db['executed_controller']:
-                                    self.data_db['executed_controller'].remove(temp_name)
-                            write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
+                                if self.executed_controllers.contains(n):
+                                    self.executed_controllers.remove(temp_name)
+                    queued = not self.parallel
                 else:
                     queued = False
         #self.init = False
@@ -310,20 +294,18 @@ class controller_stack(object):
             #print self.controller
             #data = self.controller[name]
             ctrl = self.controller_objects[name]
-            p = mp.Process(target=control_worker, args=[1, name, now, self.database.address, self.debug, inputs, ctrl])
+            p = mp.Process(target=control_worker, args=[1, name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers])
+            self.running_controllers.add(name)
             p.start()
-            self.data_db['running_controller'].append(name)
-            write_db({'running_controller':self.data_db['running_controller']}, self.database.address)
-            p.join()
-            print(name, " returned from do_control")
+
+            #print(name, " returned from do_control")
         else:
             ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
             ctrl['output'][now] = copy_dict(ctrl['fun'].output)
             ctrl['last'] = now
             log_to_db(name, ctrl, now, self.database.address)
             self.read_from_db()
-            self.data_db['executed_controller'].append(name)
-            write_db({'executed_controller':self.data_db['executed_controller']}, self.database.address)
+            self.executed_controllers.add(name)
                 
     def update_inputs(self, name, now):
         """
@@ -416,6 +398,20 @@ class controller_stack(object):
         if self.parallel: ctrl = self.controller_objects[name]
         else: ctrl = self.controller[name]['fun']
         return ctrl.get_input(keys=keys)
-        
+
+
+class MyList(object):
+    ''' Create a list class for Basemanager.'''
+    def __init__(self):
+        self.list = list()
+
+    def contains(self, x):
+        return x in self.list
+
+    def add(self, x):
+        self.list.append(x)
+
+    def remove(self, x):
+        self.list.remove(x)
 # FIXME
 # Check for error when db communication

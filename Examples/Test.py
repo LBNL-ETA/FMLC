@@ -148,7 +148,7 @@ if __name__ == '__main__':
     mapping['control1_b'] = 'mpc1_a'
 
     controller.initialize(mapping)
-    for i in range(40):
+    for i in range(80):
         #print i
         #if i == 2: write_db({'dev_debug':False}, controller.database.address); print 'Debug=False'
         #if i == 2: controller.set_input({'ctrl1_b':10})
@@ -159,13 +159,14 @@ if __name__ == '__main__':
         #        'DB running controller', controller.data_db['running_controller']
         # print ('.')
         # print ('\033[F')
-        time.sleep(0.1)
+        time.sleep(0.2)
 
 
     #print '\n\nInput\n', controller.log_to_df(which=['input'])['mpc1']
     #print '\n\nLog\n', controller.log_to_df()
     time.sleep(2)
-    controller.shutdown()
+    print(controller.log_to_df())
+    #controller.shutdown()
 
 
 # In[ ]:
