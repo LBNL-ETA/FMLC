@@ -12,6 +12,7 @@ from .pythonDB.utility import PythonDB_wrapper, write_db, read_db
 import multiprocessing as mp
 from multiprocessing.managers import BaseManager
 
+
 # Setup logger
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
@@ -23,6 +24,16 @@ def log_to_db(name, ctrl, now, db_address):
     for k, v in ctrl['output'][now].items():
         temp[name+'_'+k] = v
     write_db(temp, db_address)
+
+def control_worker_manager(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller, timeout_controller):
+    ''' This function calls the actual control_worker function and looks for timeout'''
+
+    p = mp.Process(target=control_worker, args=(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller))
+    p.start()
+    p.join(timeout=5)
+    if p.is_alive():
+        p.terminate()
+        timeout_controller.add(name)
 
 def control_worker(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller):
     #logger.debug('WORKER {!s} at {!s} with PID {!s} ctrl is {!s}'.format(name, now, mp.current_process(), ctrl))
@@ -134,6 +145,7 @@ class controller_stack(object):
         manager.start()
         self.running_controllers = manager.MyList()
         self.executed_controllers = manager.MyList()
+        self.timeout_controllers = manager.MyList()
 
         # Initialize each controller's data storage with the enriched self.controller dictionaries.
         self.controller_objects = {}
@@ -255,6 +267,13 @@ class controller_stack(object):
                         for n in self.execution_list[task]['controller']:
                             if self.executed_controllers.contains(n):
                                 temp_name.append(n) # Store executed controller in list
+                            if self.timeout_controllers.contains(n):
+                                # A controller got stuck.
+                                self.timeout_controllers.remove(n)
+                                if self.running_controllers.contains(n): self.running_controllers.remove(n)
+                                self.execution_list[task]['running'] = False
+                                warnings.warn('Controller {} timeout'.format(n), Warning)
+                                break
                         if len(temp_name) == 1: # If one controller in list then next one to be spawn
                             subtask_id = self.execution_list[task]['controller'].index(temp_name[0])
                             self.executed_controllers.remove(temp_name[0]) # Clear the execution list
@@ -294,7 +313,7 @@ class controller_stack(object):
             #print self.controller
             #data = self.controller[name]
             ctrl = self.controller_objects[name]
-            p = mp.Process(target=control_worker, args=[1, name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers])
+            p = mp.Process(target=control_worker_manager, args=[1, name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers, self.timeout_controllers])
             self.running_controllers.add(name)
             p.start()
 
@@ -413,5 +432,11 @@ class MyList(object):
 
     def remove(self, x):
         self.list.remove(x)
+
+    def __str__(self):
+        return self.list.__str__()
+
+    def __repr__(self):
+        return self.list.__repr__()
 # FIXME
 # Check for error when db communication

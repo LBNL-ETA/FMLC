@@ -10,3 +10,5 @@
 ###################
 *checkpoint.ipynb
 **/.ipynb_checkpoints/*
+
+.idea/
