@@ -149,11 +149,16 @@ class controller_stack(object):
 
         # Initialize each controller's data storage with the enriched self.controller dictionaries.
         self.controller_objects = {}
+        pool = []
         for name in list(self.controller.keys()):
             # Register controller processes
             exec('self.controller_objects[name] = manager.'+name+'()')
             # Initialize controller
-            mp.Process(target=initialize_class, args=[self.controller_objects[name], self.controller[name]]).start()
+            p = mp.Process(target=initialize_class, args=[self.controller_objects[name], self.controller[name]])
+            pool.append(p)
+            p.start()
+        for p in pool:
+            p.join()
         logger.debug(self.controller_objects)
 
     def initialize_database(self):
@@ -262,6 +267,8 @@ class controller_stack(object):
                         self.executed_controllers.remove(self.execution_list[task]['controller'][-1])
                         self.execution_list[task]['running'] = False
                     else:
+                        #
+                        reset = False
                         # Check if next module to start
                         temp_name = []
                         for n in self.execution_list[task]['controller']:
@@ -270,10 +277,14 @@ class controller_stack(object):
                             if self.timeout_controllers.contains(n):
                                 # A controller got stuck.
                                 self.timeout_controllers.remove(n)
-                                if self.running_controllers.contains(n): self.running_controllers.remove(n)
+                                if self.running_controllers.contains(n):
+                                    self.running_controllers.remove(n)
                                 self.execution_list[task]['running'] = False
                                 warnings.warn('Controller {} timeout'.format(n), Warning)
+                                reset = True
                                 break
+                        if reset:
+                            break
                         if len(temp_name) == 1: # If one controller in list then next one to be spawn
                             subtask_id = self.execution_list[task]['controller'].index(temp_name[0])
                             self.executed_controllers.remove(temp_name[0]) # Clear the execution list

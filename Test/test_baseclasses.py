@@ -2,9 +2,7 @@ import sys
 from os import path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-from FMLC.triggering import triggering
 from FMLC.baseclasses import eFMU
-from FMLC.stackedclasses import controller_stack
 
 
 def test_controller1():
@@ -26,3 +24,4 @@ def test_controller1():
     assert variables == ['a', 'b']
     assert testcontroller.get_input() == {'a': 3, 'b': 3}
     assert testcontroller.get_output() == {'c': 9}
+    assert testcontroller.get_var('output') == {'c': 9}
