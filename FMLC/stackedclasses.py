@@ -25,15 +25,17 @@ def log_to_db(name, ctrl, now, db_address):
         temp[name+'_'+k] = v
     write_db(temp, db_address)
 
-def control_worker_manager(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller, timeout_controller):
+def control_worker_manager(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller, timeout_controller, timeout):
     ''' This function calls the actual control_worker function and looks for timeout'''
 
     p = mp.Process(target=control_worker, args=(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller))
     p.start()
-    p.join(timeout=5)
+    p.join(timeout=timeout)
     if p.is_alive():
         p.terminate()
         timeout_controller.add(name)
+    else:
+        p.terminate()
 
 def control_worker(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller):
     #logger.debug('WORKER {!s} at {!s} with PID {!s} ctrl is {!s}'.format(name, now, mp.current_process(), ctrl))
@@ -58,7 +60,7 @@ def initialize_class(ctrl, data):
     ctrl.update_storage(data, init=True)
 
 class controller_stack(object):
-    def __init__(self, controller, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False):
+    def __init__(self, controller, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False, timeout=5):
         """
         Initialize the controller stack object.
 
@@ -86,6 +88,7 @@ class controller_stack(object):
         self.debug_db = debug_db
         self.name = name
         self.parallel = parallel
+        self.timeout = timeout
         #self.init = True
 
     def initialize(self, mapping, now=time.time()):
@@ -140,7 +143,6 @@ class controller_stack(object):
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
         manager = BaseManager()
-        manager.register('MyList', MyList)
         manager.register('MyList', MyList)
         manager.start()
         self.running_controllers = manager.MyList()
@@ -280,6 +282,7 @@ class controller_stack(object):
                                 if self.running_controllers.contains(n):
                                     self.running_controllers.remove(n)
                                 self.execution_list[task]['running'] = False
+                                print('Controller timeout', n)
                                 warnings.warn('Controller {} timeout'.format(n), Warning)
                                 reset = True
                                 break
@@ -324,7 +327,7 @@ class controller_stack(object):
             #print self.controller
             #data = self.controller[name]
             ctrl = self.controller_objects[name]
-            p = mp.Process(target=control_worker_manager, args=[1, name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers, self.timeout_controllers])
+            p = mp.Process(target=control_worker_manager, args=[1, name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers, self.timeout_controllers, self.timeout])
             self.running_controllers.add(name)
             p.start()
 
