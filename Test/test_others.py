@@ -109,7 +109,7 @@ def test_input_errors():
     except:
         AssertionError
 
-def test_initial_once():
+def test_init_once():
     controller = {}
     controller['forecast1'] = {'fun':testcontroller1, 'sampletime':0}
     controller = controller_stack(controller, tz=-8, debug=True, parallel=True, timeout=2)
