@@ -193,9 +193,6 @@ def test_stuckController():
     assert df5.shape[0] == 1
     assert len(df4.columns) == 1
     assert len(df5.columns) == 1
-    assert controller.running_controllers.__str__() == '[]'
-    assert controller.executed_controllers.__str__() == "['forecast2', 'forecast3']"
-    assert controller.timeout_controllers.__str__() == '[]'
     # Check contents of records
     assert pd.isna(df1['a'][0])
     assert pd.isna(df1['b'][0])
