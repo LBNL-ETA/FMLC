@@ -263,43 +263,42 @@ class controller_stack(object):
                     else:
                         queued = True
                 elif self.execution_list[task]['running']:
+                    reset = False
+                    # Check if next module to start
+                    finished_controllers = []
+                    for n in self.execution_list[task]['controller']:
+                        if self.executed_controllers.contains(n):
+                            finished_controllers.append(n) # Store executed controller in list
+                        if self.timeout_controllers.contains(n):
+                            # A controller got stuck.
+                            self.timeout_controllers.remove(n)
+                            if self.running_controllers.contains(n):
+                                self.running_controllers.remove(n)
+                            self.execution_list[task]['running'] = False
+                            print('Controller timeout', n)
+                            warnings.warn('Controller {} timeout'.format(n), Warning)
+                            reset = True
+                            break
+                    if reset:
+                        break
                     # CASE2: all subtasks in the task are already executed
-                    if self.executed_controllers.contains(self.execution_list[task]['controller'][-1]):
+                    if self.execution_list[task]['controller'][-1] in finished_controllers:
                         # Control option done
                         self.executed_controllers.remove(self.execution_list[task]['controller'][-1])
                         self.execution_list[task]['running'] = False
                     else:
-                        #
-                        reset = False
-                        # Check if next module to start
-                        temp_name = []
-                        for n in self.execution_list[task]['controller']:
-                            if self.executed_controllers.contains(n):
-                                temp_name.append(n) # Store executed controller in list
-                            if self.timeout_controllers.contains(n):
-                                # A controller got stuck.
-                                self.timeout_controllers.remove(n)
-                                if self.running_controllers.contains(n):
-                                    self.running_controllers.remove(n)
-                                self.execution_list[task]['running'] = False
-                                print('Controller timeout', n)
-                                warnings.warn('Controller {} timeout'.format(n), Warning)
-                                reset = True
-                                break
-                        if reset:
-                            break
-                        if len(temp_name) == 1: # If one controller in list then next one to be spawn
-                            subtask_id = self.execution_list[task]['controller'].index(temp_name[0])
-                            self.executed_controllers.remove(temp_name[0]) # Clear the execution list
+                        if len(finished_controllers) == 1: # If one controller in list then next one to be spawn
+                            subtask_id = self.execution_list[task]['controller'].index(finished_controllers[0])
+                            self.executed_controllers.remove(finished_controllers[0]) # Clear the execution list
                             name = self.execution_list[task]['controller'][subtask_id+1]
                             ctrl = self.controller[name]
                             logger.debug('Executing Controller "{!s}"'.format(name))
                             self.do_control(name, ctrl, now, parallel=self.parallel)
-                        elif len(temp_name) > 1:
-                            warnings.warn('Multiple entiries of Controller in executed: {}. Resetting controller.'.format(temp_name), Warning)
+                        elif len(finished_controllers) > 1:
+                            warnings.warn('Multiple entiries of Controller in executed: {}. Resetting controller.'.format(finished_controllers), Warning)
                             for n in self.execution_list[task]['controller']:
                                 if self.executed_controllers.contains(n):
-                                    self.executed_controllers.remove(temp_name)
+                                    self.executed_controllers.remove_all(n)
                     queued = not self.parallel
                 else:
                     queued = False
@@ -446,6 +445,12 @@ class MyList(object):
 
     def remove(self, x):
         self.list.remove(x)
+    
+    def remove_all(self, x):
+        self.list = [i for i in self.list if i != x]
+    
+    def size(self):
+        return len(self.list)
 
     def __str__(self):
         return self.list.__str__()

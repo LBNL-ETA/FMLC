@@ -5,7 +5,6 @@ import time
 from FMLC.triggering import triggering
 from FMLC.baseclasses import eFMU
 from FMLC.stackedclasses import controller_stack
-import warnings
 
 class testcontroller1(eFMU):
     def __init__(self):
@@ -109,3 +108,18 @@ def test_input_errors():
         assert 'parameter' in str(e)
     except:
         AssertionError
+
+def test_initial_once():
+    controller = {}
+    controller['forecast1'] = {'fun':testcontroller1, 'sampletime':0}
+    controller = controller_stack(controller, tz=-8, debug=True, parallel=True, timeout=2)
+
+    mapping = {}
+    mapping['forecast1_a'] = 10
+    mapping['forecast1_b'] = 4
+    controller.initialize(mapping)
+
+    obj = controller.controller_objects['forecast1']
+    for i in range(3):
+        controller.query_control(time.time())
+        assert controller.controller_objects['forecast1'] is obj
