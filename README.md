@@ -1,4 +1,5 @@
 # FMLC
+![Actions Status](https://github.com/LBNL-ETA/FMLC/workflows/Python%20application/badge.svg)
 #### Framework for Multi Layer Control in Python
 -------------------------------------------------------------------------
 
