@@ -6,14 +6,14 @@
 This package is developed to serve as a framework for control applications (building automation, energy management, electric vehicle fleet aggregation, etc.). In particular, this framework is built to handle the parallelization, timing/triggering, data logging, and error handling of multiple controller modules.
 
 ## General
-This package is developed as a framework/backend for multi-layer and multi-time domain controller. One example application are advanced controller based on [Model Predictive Control](https://en.wikipedia.org/wiki/Model_predictive_control) (MPC) where different sub-modules (i.e. weather forecast, energy management, real-time control), with different time constants, have to be coordinated. This framework allows parallelization using the `multiprocessing` module in Python. The FMLC package was tested under Python 2.7 (single and parallel structure) and Python 3.7 (only single structure).
+This package is developed as a framework/backend for multi-layer and multi-time domain controller. One example application are advanced controller based on [Model Predictive Control](https://en.wikipedia.org/wiki/Model_predictive_control) (MPC) where different sub-modules (i.e. weather forecast, energy management, real-time control), with different time constants, have to be coordinated. This framework allows parallelization using the `multiprocessing` module in Python. The FMLC package was tested under Python 2.7 (single and parallel structure) and Python 3.7 (single and parallel structure).
 
 *Please note that the FMLC package and especially the examples are still under development. Please open an issue for specific questions*
 
 ## Getting Started
 The following link permits users to clone the source directory containing the [FMLC](https://github.com/LBNL-ETA/FMLC) package.
 
-The package only depends on modules from the Python Standard Library.
+See requirements.txt for dependencies.
 
 ## Example
 To illustrate and test its functionality, each module executes some tests, when called as *main*.
