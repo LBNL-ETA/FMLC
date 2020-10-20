@@ -16,8 +16,10 @@ from multiprocessing.managers import BaseManager
 # Setup logger
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
-
 def log_to_db(name, ctrl, now, db_address):
+    """
+    A helper function to write records into database.
+    """
     temp = {}
     for k, v in ctrl['input'][now].items():
         temp[name+'_'+k] = v
@@ -26,8 +28,9 @@ def log_to_db(name, ctrl, now, db_address):
     write_db(temp, db_address)
 
 def control_worker_manager(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller, timeout_controller, timeout):
-    ''' This function calls the actual control_worker function and looks for timeout'''
-
+    """
+    Spawn a new process to execute control_work function, which does the actual computation of the controller. Also monitors timeout.
+    """
     p = mp.Process(target=control_worker, args=(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller))
     p.start()
     p.join(timeout=timeout)
@@ -38,8 +41,9 @@ def control_worker_manager(wid, name, now, db_address, debug, inputs, ctrl, exec
         p.terminate()
 
 def control_worker(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller):
-    #logger.debug('WORKER {!s} at {!s} with PID {!s} ctrl is {!s}'.format(name, now, mp.current_process(), ctrl))
-    # Compute controller
+    """
+    Do the actual computation of the controller. Cache the new results into the controller's storage. Also send new records to database.
+    """
     temp = {}
     temp['input'] = {}
     temp['input'][now] = inputs
@@ -57,6 +61,9 @@ def control_worker(wid, name, now, db_address, debug, inputs, ctrl, executed_con
     #print('return control_worker: ', name)
     
 def initialize_class(ctrl, data):
+    """
+    A helper function that initialize the storage of the controller.
+    """
     ctrl.update_storage(data, init=True)
 
 class controller_stack(object):
@@ -240,14 +247,22 @@ class controller_stack(object):
         if self.debug:
             logger.debug('Execution list: {!s}'.format(self.execution_list))
             logger.debug('Execution map: {!s}'.format(self.execution_map))
-        
-    def query_control(self, now, return_db=False):
+
+    def query_control(self, now):
+        """
+        Trigger computations for controllers if the sample times have arrived.
+        In single thread mod, each call of query_control will trigger a computations for each controller in the system.
+        In multi thread mod, each call of query_control will trigger a computation for one controller within each task.
+            tasks are assigned based on input dependency.
+
+        Input
+        -----
+        now(float): The current time in seconds since the epoch as a floating point number.
+        """
         self.read_from_db()
         for task in sorted(self.execution_list.keys()):
             queued = True
-            # Updated on 2019/05/10: The main loop for execution is now handled by this while loop instead of the main trigger.
             while queued:
-                # self.read_from_db()
                 # CASE1: task is not running and a new step is needed.
                 if not self.execution_list[task]['running'] and now >= self.execution_list[task]['next']:
                     name = self.execution_list[task]['controller'][0]
@@ -299,14 +314,16 @@ class controller_stack(object):
                             for n in self.execution_list[task]['controller']:
                                 if self.executed_controllers.contains(n):
                                     self.executed_controllers.remove_all(n)
-                    queued = not self.parallel
+                        queued = not self.parallel
                 else:
                     queued = False
-        #self.init = False
-        #if self.debug: print 'Duration query_control:',time.time()-time_st
             
     def do_control(self, name, ctrl, now, parallel=False):
         """
+        In single thread mod, this function will perform the actual computation of a controller.
+        In multi thread mod, this function will spawn a new process called control_worker_manager. 
+            The new process will handle the computation.
+
         Input
         -----
         name(str)
@@ -363,14 +380,14 @@ class controller_stack(object):
         self.controller[name]['input'][now] = inputs
         return inputs
         
-        
     def read_from_db(self, name=None, refresh_device=True):
-        #time_st = time.time()
         self.data_db = read_db(self.database.address)
         if refresh_device: self.refresh_device_from_db()
-        #if self.debug: print 'Duration read_from_db for {}: {}'.format(name, time.time()-time_st)
         
     def log_to_df(self, stacks='all', which=['input','output','log']):
+        """
+        Return a dataframe that contains the logs.
+        """
         if stacks == 'all':
             controller = self.controller
         else:
@@ -457,5 +474,3 @@ class MyList(object):
 
     def __repr__(self):
         return self.list.__repr__()
-# FIXME
-# Check for error when db communication

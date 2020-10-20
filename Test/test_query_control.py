@@ -108,10 +108,10 @@ def test_normal():
     
     # Check number of records
     assert df1.shape[0] == 3
-    assert df2.shape[0] == 4
-    assert df3.shape[0] == 4
+    assert df2.shape[0] == 7
+    assert df3.shape[0] == 7
     assert df4.shape[0] == 3
-    assert df5.shape[0] == 2 or df5.shape[0] == 3
+    assert df5.shape[0] == 3
 
     # Check contents of records
     assert pd.isna(df1['a'][0])
@@ -132,20 +132,23 @@ def test_normal():
     assert list(df1['a'])[1:] == [10.0, 10.0]
     assert list(df1['b'])[1:] == [4.0, 4.0]
     assert list(df1['c'])[1:] == [40.0, 40.0]
-    assert list(df2['a'])[1:] == [20.0, 20.0, 20.0]
-    assert list(df2['b'])[1:] == [4.0, 4.0, 4.0]
-    assert list(df2['c'])[1:] == [80.0, 80.0, 80.0]
-    assert list(df3['a'])[1:] == [30.0, 30.0, 30.0]
-    assert list(df3['b'])[1:] == [4.0, 4.0, 4.0]
-    assert list(df3['c'])[1:] == [120.0, 120.0, 120.0]
+    assert list(df2['a'])[1:] == [20.0, 20.0, 20.0, 20.0, 20.0, 20.0]
+    assert list(df2['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
+    assert list(df2['c'])[1:] == [80.0, 80.0, 80.0, 80.0, 80.0, 80.0]
+    assert list(df3['a'])[1:] == [30.0, 30.0, 30.0, 30.0, 30.0, 30.0]
+    assert list(df3['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
+    assert list(df3['c'])[1:] == [120.0, 120.0, 120.0, 120.0, 120.0, 120.0]
     assert list(df4['a'])[1:] == [40.0, 40.0]
     assert list(df4['b'])[1:] == [10.0, 10.0]
     assert list(df4['c'])[1:] == [400.0, 400.0]
+    assert list(df5['a'])[1:] == [400.0, 400.0]
+    assert list(df5['b'])[1:] == [40.0, 40.0]
+    assert list(df5['c'])[1:] == [16000.0, 16000.0]
     assert list(df1['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df2['Logging']) == ['Initialize', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!']
-    assert list(df3['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df2['Logging']) == ['Initialize', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!']
+    assert list(df3['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
     assert list(df4['Logging']) == ['Initialize', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!']
-
+    assert list(df5['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
 
 def test_stuckController():
     '''This tests if the timeout controllers can be caught'''
@@ -187,8 +190,8 @@ def test_stuckController():
 
     # Check number of records
     assert df1.shape[0] == 2
-    assert df2.shape[0] == 3
-    assert df3.shape[0] == 3
+    assert df2.shape[0] == 4
+    assert df3.shape[0] == 4
     assert df4.shape[0] == 1
     assert df5.shape[0] == 1
     assert len(df4.columns) == 1
@@ -206,15 +209,15 @@ def test_stuckController():
     assert list(df1['a'])[1:] == [10.0]
     assert list(df1['b'])[1:] == [4.0]
     assert list(df1['c'])[1:] == [40.0]
-    assert list(df2['a'])[1:] == [20.0, 20.0]
-    assert list(df2['b'])[1:] == [4.0, 4.0]
-    assert list(df2['c'])[1:] == [80.0, 80.0]
-    assert list(df3['a'])[1:] == [30.0, 30.0]
-    assert list(df3['b'])[1:] == [4.0, 4.0]
-    assert list(df3['c'])[1:] == [120.0, 120.0]
+    assert list(df2['a'])[1:] == [20.0, 20.0, 20.0]
+    assert list(df2['b'])[1:] == [4.0, 4.0, 4.0]
+    assert list(df2['c'])[1:] == [80.0, 80.0, 80.0]
+    assert list(df3['a'])[1:] == [30.0, 30.0, 30.0]
+    assert list(df3['b'])[1:] == [4.0, 4.0, 4.0]
+    assert list(df3['c'])[1:] == [120.0, 120.0, 120.0]
     assert list(df1['Logging']) == ['Initialize', 'testcontroller1 did a computation!']
-    assert list(df2['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df3['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df2['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df3['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
     assert list(df4['Logging']) == ['Initialize']
     assert list(df5['Logging']) == ['Initialize']
     
@@ -260,7 +263,7 @@ def test_stuckController():
     # Check number of records
     assert df1.shape[0] == 3 
     assert df2.shape[0] == 1
-    assert df3.shape[0] == 4
+    assert df3.shape[0] == 7
     assert df4.shape[0] == 1
     assert df5.shape[0] == 1
     assert len(df2.columns) == 1
@@ -276,12 +279,12 @@ def test_stuckController():
     assert list(df1['a'])[1:] == [10.0, 10.0]
     assert list(df1['b'])[1:] == [4.0, 4.0]
     assert list(df1['c'])[1:] == [40.0, 40.0]
-    assert list(df3['a'])[1:] == [30.0, 30.0, 30.0]
-    assert list(df3['b'])[1:] == [4.0, 4.0, 4.0]
-    assert list(df3['c'])[1:] == [120.0, 120.0, 120.0]
+    assert list(df3['a'])[1:] == [30.0, 30.0, 30.0, 30.0, 30.0, 30.0]
+    assert list(df3['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
+    assert list(df3['c'])[1:] == [120.0, 120.0, 120.0, 120.0, 120.0, 120.0]
     assert list(df1['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
     assert list(df2['Logging']) == ['Initialize']
-    assert list(df3['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df3['Logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
     assert list(df4['Logging']) == ['Initialize']
     assert list(df5['Logging']) == ['Initialize']
 
