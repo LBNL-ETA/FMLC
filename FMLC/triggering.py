@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 '''
 This module is part of the FMLC package.
 https://github.com/LBNL-ETA/FMLC
