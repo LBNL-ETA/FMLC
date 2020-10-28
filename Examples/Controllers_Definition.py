@@ -66,3 +66,52 @@ class controller_dummy(eFMU):
         control = {'P_batt': data['P_load'] - data['P_pv']}
         self.output['control'] = control
         return 'Computed control.'
+"""
+Controllers for test.ipynb example.
+"""
+class testcontroller1(eFMU):
+    def __init__(self):
+        self.input = {'a': None, 'b': None}
+        self.output = {'c': None}
+        self.init = True
+    def compute(self):
+        self.init= False
+        self.output['c'] = self.input['a'] * self.input['b']
+        return 'testcontroller1 did a computation!'
+
+
+class testcontroller2(eFMU):
+    def __init__(self):
+        self.input = {'a': None, 'b': None}
+        self.output = {'c': None}
+        self.init = True
+
+    def compute(self):
+        self.init = False
+        self.output['c'] = self.input['a'] * self.input['b']
+        time.sleep(0.2)
+        return 'testcontroller2 did a computation!'
+
+class testcontroller3(eFMU):
+    def __init__(self):
+        self.input = {'a': None, 'b': None}
+        self.output = {'c': None}
+        self.init = True
+
+    def compute(self):
+        self.init = False
+        self.output['c'] = self.input['a'] * self.input['b']
+        time.sleep(1)
+        return 'testcontroller3 did a computation!'
+
+class testcontroller4(eFMU):
+    def __init__(self):
+        self.input = {'a': None, 'b': None}
+        self.output = {'c': None}
+        self.init = True
+
+    def compute(self):
+        self.init = False
+        self.output['c'] = self.input['a'] * self.input['b']
+        time.sleep(10)
+        return 'testcontroller4 did a computation!'
