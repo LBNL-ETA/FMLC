@@ -1,7 +1,17 @@
+import os
+import sys
+import time
+import numpy as np
 import pandas as pd
 import datetime as dtm
-import numpy as np
-import time
+import matplotlib.pyplot as plt
+
+# Import FMLC
+#sys.path.append(r'C:\Users\Christoph\Documents\PublicRepos\FMLC')
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath("Test.ipynb"))))
+from FMLC.triggering import triggering
+from FMLC.baseclasses import eFMU
+from FMLC.stackedclasses import controller_stack
 
 """
 Dummy modules for MicroGridController example.
