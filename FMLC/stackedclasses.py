@@ -414,12 +414,14 @@ class controller_stack(object):
         return dfs
 
     def log_to_csv(self, new=False, path='log'):
+        """Save the logs to a csv file"""
         dfs = self.log_to_df()
         mode = 'ab' if not new else 'wb'
         for name, log in dfs.items():
             log.to_csv(path+'_'+name+'.csv')
 
     def clear_logs(self):
+        """ Clear the current log cache """
         for name, ctrl in self.controller.items():
             if self.parallel:
                 mp.Process(target=initialize_class, args=[self.controller_objects[name], self.controller[name]]).start()
@@ -428,6 +430,7 @@ class controller_stack(object):
                     ctrl[t] = {}
             
     def shutdown(self):
+        """ Shut down the database """
         self.database.kill_db()
         
     def set_input(self, inputs):
