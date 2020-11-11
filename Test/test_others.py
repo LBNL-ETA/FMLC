@@ -100,7 +100,7 @@ def test_input_errors():
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
     try:
-            controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
+        controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
         AssertionError
     except KeyError as e:
         assert 'parameter' in str(e)
