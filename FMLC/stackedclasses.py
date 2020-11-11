@@ -65,7 +65,7 @@ def initialize_class(ctrl, data):
     ctrl.update_storage(data, init=True)
 
 class controller_stack(object):
-    def __init__(self, controller, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False, timeout=5):
+    def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False, timeout=5, now=time.time()):
         """
         Initialize the controller stack object.
 
@@ -80,12 +80,24 @@ class controller_stack(object):
                         'forecast2': {'fun':testcontroller2, 'sampletime':1}
                         'forecast3': {'fun':testcontroller1, 'sampletime':2}
                         }
-
+        mapping(dict): Mapping of the inputs to the controllers' input variables.
+            example:
+                mapping['forecast1_a'] = 10
+                mapping['forecast1_b'] = 4
+                mapping['forecast2_a'] = 20
+                mapping['forecast2_b'] = 4
+                mapping['forecast3_a'] = 30
+                mapping['forecast3_b'] = 4
+                mapping['mpc1_a'] = 'forecast1_c'
+                mapping['mpc1_b'] = 'forecast1_a'
+                mapping['control1_a'] = 'mpc1_c'
+                mapping['control1_b'] = 'mpc1_a'
         tz(int): utc/GMT time zone
         debug(bool)
         name(str)
         parallel(bool)
         debug_db(bool)
+        now(float): The time in seconds since the epoch.
         """
         self.controller = controller
         self.tz = tz
@@ -94,11 +106,12 @@ class controller_stack(object):
         self.name = name
         self.parallel = parallel
         self.timeout = timeout
-        #self.init = True
+        self.__initialize(mapping, now)
 
-    def initialize(self, mapping, now=time.time()):
+    def __initialize(self, mapping, now=time.time()):
         """
-        A function to call initializers of the pythonDB, controller, mapping, and execution list.
+        A function to call initializers of the pythonDB, controller, mapping, and execution list. 
+        This function is a private method only called by the __init__ method.
 
         Input
         -----
@@ -117,13 +130,13 @@ class controller_stack(object):
         now(float): The time in seconds since the epoch.
         """
         self.db_mode = 'pythonDB'
-        self.initialize_controller(now)
-        self.initialize_database()
-        self.initialize_mapping(mapping)
+        self.__initialize_controller(now)
+        self.__initialize_database()
+        self.__initialize_mapping(mapping)
         self.generate_execution_list()
 
 
-    def initialize_controller(self, now):
+    def __initialize_controller(self, now):
         """
         Initialize the controllers.
 
@@ -168,7 +181,7 @@ class controller_stack(object):
             p.join()
         logger.debug(self.controller_objects)
 
-    def initialize_database(self):
+    def __initialize_database(self):
         """
         Initialize the database columns. Columns include input & output variables for each device, timezone, dev_debug,
         dev_nodename, and dev_parallel.
@@ -189,7 +202,7 @@ class controller_stack(object):
         write_db(db_columns, self.database.address)
         logger.debug('SetupDB\n', read_db(self.database.address))
 
-    def initialize_mapping(self, mapping):
+    def __initialize_mapping(self, mapping):
         """
         Validate the input mapping.
         """
@@ -434,6 +447,7 @@ class controller_stack(object):
         self.database.kill_db()
         
     def set_input(self, inputs):
+        """ Set inpusts for controllers"""
         for k, v in inputs.items():
             if k in list(self.mapping.keys()):
                 self.mapping[k] = v
@@ -441,6 +455,7 @@ class controller_stack(object):
                 raise KeyError('{} not a control parameter.'.format(k))
                 
     def get_output(self, name, keys=[]):
+        """Get output of conroller {name} """
         if self.parallel: ctrl = self.controller_objects[name]
         else: ctrl = self.controller[name]['fun']
         return ctrl.get_output(keys=keys)
