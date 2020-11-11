@@ -65,7 +65,8 @@ def initialize_class(ctrl, data):
     ctrl.update_storage(data, init=True)
 
 class controller_stack(object):
-    def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False, timeout=5, now=time.time()):
+    def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False, \
+        timeout=5, now=time.time(), log_config={'clear_log_period': 24*60*60, 'log_path':'./log'}):
         """
         Initialize the controller stack object.
 
@@ -98,6 +99,9 @@ class controller_stack(object):
         parallel(bool)
         debug_db(bool)
         now(float): The time in seconds since the epoch.
+        log_config(dict): dictionary to configure log saving (logs stored in memory will be cleared).
+            'clear_log_period': time in seconds of the period of log saving.
+            'log_path': path to save the log files. Filenames will have the format {log_path}_{ctrl_name}.csv
         """
         self.controller = controller
         self.tz = tz
@@ -107,8 +111,11 @@ class controller_stack(object):
         self.parallel = parallel
         self.timeout = timeout
         self.__initialize(mapping, now)
+        self.clear_log_period = log_config['clear_log_period']
+        self.log_path = log_config['log_path']
+        self.last_clear_time = now
 
-    def __initialize(self, mapping, now=time.time()):
+    def __initialize(self, mapping, now):
         """
         A function to call initializers of the pythonDB, controller, mapping, and execution list. 
         This function is a private method only called by the __init__ method.
@@ -271,6 +278,9 @@ class controller_stack(object):
         now(float): The current time in seconds since the epoch as a floating point number.
         """
         self.read_from_db()
+        if now - self.last_clear_time > self.clear_log_period:
+            self.log_to_csv(path=self.log_path)
+            self.clear_logs()
         for task in sorted(self.execution_list.keys()):
             queued = True
             while queued:
@@ -436,11 +446,9 @@ class controller_stack(object):
     def clear_logs(self):
         """ Clear the current log cache """
         for name, ctrl in self.controller.items():
-            if self.parallel:
-                mp.Process(target=initialize_class, args=[self.controller_objects[name], self.controller[name]]).start()
-            else:
-                for t in ['output','input','log']:
-                    ctrl[t] = {}
+            for t in ['output','input','log']:
+                ctrl[t] = {}
+            initialize_class(self.controller_objects[name], ctrl)
             
     def shutdown(self):
         """ Shut down the database """
@@ -459,7 +467,9 @@ class controller_stack(object):
         if self.parallel: ctrl = self.controller_objects[name]
         else: ctrl = self.controller[name]['fun']
         return ctrl.get_output(keys=keys)
+
     def get_input(self, name, keys=[]):
+        """Get input of conroller {name} """
         if self.parallel: ctrl = self.controller_objects[name]
         else: ctrl = self.controller[name]['fun']
         return ctrl.get_input(keys=keys)
