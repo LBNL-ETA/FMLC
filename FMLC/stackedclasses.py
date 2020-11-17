@@ -8,6 +8,7 @@ import logging
 from .pythonDB.utility import PythonDB_wrapper, write_db, read_db
 
 import multiprocessing as mp
+import threading
 from multiprocessing.managers import BaseManager
 
 
@@ -279,8 +280,7 @@ class controller_stack(object):
         """
         self.read_from_db()
         if now - self.last_clear_time > self.clear_log_period:
-            self.log_to_csv(path=self.log_path)
-            self.clear_logs()
+            threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
         for task in sorted(self.execution_list.keys()):
             queued = True
             while queued:
@@ -435,6 +435,12 @@ class controller_stack(object):
                     else:
                         dfs[name] = pd.concat([dfs[name], temp], axis=1)
         return dfs
+    
+    def save_and_clear(self, path='log'):
+        """Save the logs to csv files and clear 
+        the current log cache in memory."""
+        self.log_to_csv(path)
+        self.clear_logs()
 
     def log_to_csv(self, new=False, path='log'):
         """Save the logs to a csv file"""
