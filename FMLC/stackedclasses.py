@@ -24,7 +24,8 @@ def log_to_db(name, ctrl, now, db_address):
         temp[name+'_'+k] = v
     for k, v in ctrl['output'][now].items():
         temp[name+'_'+k] = v
-    write_db(temp, db_address)
+    if write_db(temp, db_address) == list():
+        print("An error occurred when writing to database.")
 
 def control_worker_manager(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller, timeout_controller, timeout):
     """
