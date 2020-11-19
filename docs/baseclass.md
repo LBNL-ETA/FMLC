@@ -12,13 +12,13 @@ Initialize the inputs and outputs. By default, they are set as empty dictionarie
 ```
 
 ## do_step
-The function to advance the simulator or controller. It takes in a dictionary and set the values of the inputs according to that dictionary. Then it calls `self.__compute__` to perform the computation, which the user needs to implement himself.
+The function to advance the simulator or controller. It takes in a dictionary and set the values of the inputs according to that dictionary. Then it calls `self.__compute__` to perform the computation, which the users needs to implement themselves.
 
 ## get_model_variables
 Return all model or controller input variables as a list.
 
 ## compute:
-Compute outputs. Return a log message.
+Abstract method to compute outputs. Return a log message. Users needs to implement this methods in their `eFMU` subclasses.
 
 ## get_output:
 Get the outputs of the model. Argument `keys` is a list of the outputs to be returned. If `keys == []` then all outputs are returned.
