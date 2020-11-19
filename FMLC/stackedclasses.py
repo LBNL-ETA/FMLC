@@ -96,9 +96,9 @@ class controller_stack(object):
                 mapping['control1_a'] = 'mpc1_c'
                 mapping['control1_b'] = 'mpc1_a'
         tz(int): utc/GMT time zone
-        debug(bool)
-        name(str)
-        parallel(bool)
+        debug(bool): If `True`, some extra print statements will be added for debugging purpose. Unless you are a developers of this package, you should always set it false. The default value is false.
+        name(str): Name you want to give to the database. 
+        parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. Each controller will spawn its own processes when perform a computation.
         debug_db(bool)
         now(float): The time in seconds since the epoch.
         log_config(dict): dictionary to configure log saving (logs stored in memory will be cleared).
@@ -205,7 +205,7 @@ class controller_stack(object):
             for o in self.controller[name]['outputs']:
                 db_columns[name+'_'+o] = -1
         db_columns['timezone'] = self.tz
-        db_columns['dev_debug'] = self.debug_db
+        #db_columns['dev_debug'] = self.debug_db
         db_columns['dev_nodename'] = self.name
         db_columns['dev_parallel'] = self.parallel
         write_db(db_columns, self.database.address)
