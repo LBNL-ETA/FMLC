@@ -67,7 +67,7 @@ def initialize_class(ctrl, data):
     ctrl.update_storage(data, init=True)
 
 class controller_stack(object):
-    def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, debug_db=False, \
+    def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, \
         timeout=5, now=time.time(), log_config={'clear_log_period': 24*60*60, 'log_path':'./log'}):
         """
         Initialize the controller stack object.
@@ -99,7 +99,6 @@ class controller_stack(object):
         debug(bool): If `True`, some extra print statements will be added for debugging purpose. Unless you are a developers of this package, you should always set it false. The default value is false.
         name(str): Name you want to give to the database. 
         parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. Each controller will spawn its own processes when perform a computation.
-        debug_db(bool)
         now(float): The time in seconds since the epoch.
         log_config(dict): dictionary to configure log saving (logs stored in memory will be cleared).
             'clear_log_period': time in seconds of the period of log saving.
@@ -108,7 +107,6 @@ class controller_stack(object):
         self.controller = controller
         self.tz = tz
         self.debug = debug
-        self.debug_db = debug_db
         self.name = name
         self.parallel = parallel
         self.timeout = timeout
@@ -205,7 +203,6 @@ class controller_stack(object):
             for o in self.controller[name]['outputs']:
                 db_columns[name+'_'+o] = -1
         db_columns['timezone'] = self.tz
-        #db_columns['dev_debug'] = self.debug_db
         db_columns['dev_nodename'] = self.name
         db_columns['dev_parallel'] = self.parallel
         write_db(db_columns, self.database.address)
@@ -238,7 +235,7 @@ class controller_stack(object):
         Generate self.execution_list and self.execution_map.
 
         self.execution_list is a map of dictionaries. The keys are index numbers, and the values are dictionaries
-        which the controllers with the same sample times are in the same dictionary.
+        which the controllers with input/output dependencies are in the same dictionary(subtask).
 
         self.execution_map is a dictionary with controller names being the keys and the index of the dictionary which
         contains the controller in self.execution_list being the values.
