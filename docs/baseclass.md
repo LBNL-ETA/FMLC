@@ -25,6 +25,9 @@ Abstract method to compute outputs. Return a log message. Users needs to impleme
 ### get_output
 Get the outputs of the model. Argument `keys` is a list of the outputs to be returned. If `keys == []` then all outputs are returned.
 
+## Clarification
+`self.input` and `self.output` are used to store the newest input & output, while `self.storage` is used to store the history/logs of the input & output values.
+
 ## Full Example 
 ---
 ``` python

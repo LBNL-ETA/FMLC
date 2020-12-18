@@ -228,7 +228,6 @@ class controller_stack(object):
         self.tz = int(self.data_db['timezone'])
         self.debug = bool(self.data_db['dev_debug'])
         self.name = str(self.data_db['dev_nodename'])
-        #self.parallel = bool(self.data_db['dev_parallel'])
         
     def generate_execution_list(self):
         """
@@ -350,23 +349,16 @@ class controller_stack(object):
         now(float)
         parallel(bool)
         """
-        #self.controller.keys():
-        #print self.controller_objects
-        #print ('Doctrl', name)
-        
-        
+    
         # Query controller
         logger.debug('QueryCTRL {} at {} ({})'.format(name, pd.to_datetime(now, unit='s')+pd.DateOffset(hours=self.tz), now))
         inputs = self.update_inputs(name, now)
         if parallel:
-            #print self.controller
-            #data = self.controller[name]
             ctrl = self.controller_objects[name]
             p = mp.Process(target=control_worker_manager, args=[1, name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers, self.timeout_controllers, self.timeout])
             self.running_controllers.add(name)
             p.start()
 
-            #print(name, " returned from do_control")
         else:
             ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
             ctrl['output'][now] = copy_dict(ctrl['fun'].output)
@@ -380,9 +372,6 @@ class controller_stack(object):
         Returns a mapping of the inputs of the given controller based on self.mapping
         """
         self.read_from_db()
-        #self.data_db = read_db(self.database.address)
-        #self.refresh_device_from_db()
-        #if self.debug: print 'ReadDB\n', self.data_db
         inputs = {}
         for c in self.controller[name]['inputs']:
             mapping = self.mapping[name+'_'+c]
@@ -399,22 +388,25 @@ class controller_stack(object):
         self.controller[name]['input'][now] = inputs
         return inputs
         
-    def read_from_db(self, name=None, refresh_device=True):
+    def read_from_db(self, refresh_device=True):
+        """
+        Read self.data_db from the database.
+        """
         self.data_db = read_db(self.database.address)
         if refresh_device: self.refresh_device_from_db()
         
-    def log_to_df(self, stacks='all', which=['input','output','log']):
+    def log_to_df(self, which=['input','output','log']):
         """
         Return a dataframe that contains the logs.
+
+        Input
+        ---
+        which(list): ['input','output','log'] or subset of this list.
         """
-        if stacks == 'all':
-            controller = self.controller
-        else:
-            raise ValueError('Only stacks == "all" implemented!')
+        controller = self.controller
         dfs = {}
         for name, ctrl in controller.items():
             if self.parallel:
-                # print (name)
                 ctrl = copy_dict(self.controller_objects[name].get_var('storage'))
             if len(ctrl['log']) > 0:
                 init = True
@@ -459,7 +451,7 @@ class controller_stack(object):
         self.database.kill_db()
         
     def set_input(self, inputs):
-        """ Set inpusts for controllers"""
+        """ Set inputs for controllers"""
         for k, v in inputs.items():
             if k in list(self.mapping.keys()):
                 self.mapping[k] = v

@@ -112,13 +112,76 @@ Implementation Logic:
 ## generate_execution_list
 Generate self.execution_list. 
 Implementation Logic:
-*  Iterate through all controllers to generate `self.execution_list`. `self.execution_list` is a map of dictionaries. The keys are index numbers, and the values are dictionaries which the controllers with input/output dependencies are in the same dictionary(task).  
+*  Iterate through all controllers to generate `self.execution_list`. `self.execution_list` is a map of dictionaries. The keys are index numbers, and the values are dictionaries which the controllers with input/output dependencies are in the same dictionary(task). 
 
 ## query_control
 Trigger computations for controllers if the sample times have arrived.
 In single thread mod, each call of query_control will trigger a computations for each controller in the system.
 In multi thread mod, each call of query_control will trigger a computation for one controller within each task. Tasks are assigned based on input dependency.  
 Inputs:
-* now(float): The current time in seconds since the epoch as a floating point number.
+* now(float): The current time in seconds since the epoch as a floating point number.  
 
-       
+Implementation Logic:
+* Save and clear the logs in memory if needed.
+* For each task in `self.execution_list`:
+  * If the task is not running and a new step is needed:
+    * Let the first controller in the task do control. Update the `self.execution_list`.
+  * If `self.execution_list[task]['running']` still shows the task is running.
+    * If a controller in the task got stuck, reset.
+    * If the previous controller has finished executing and there is a succeeding controller, let the succedding controller do control.
+    * If the last controller has finished running, update `self.execution_list[task]['running']` to be `False`
+    * If the quenue in `self.finished_controllers` gets clogged up, reset.
+
+## do_control  
+In single thread mod, this function will perform the actual computation of a controller.  
+In multi thread mod, this function will spawn a new process called control_worker_manager. The new process will handle the computation.   
+Inputs:
+* name(str): name of the controller:
+* ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
+* now(float): The current time in seconds since the epoch as a floating point number.
+* parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. Each controller will spawn its own processes when perform a computation.   
+
+
+## update_inputs
+Returns a mapping of the inputs of the given controller based on self.mapping.  
+Inputs: 
+* name(str): name of the controller:       
+* now(float): The current time in seconds since the epoch as a floating point number.
+  
+Implementation Logic:
+* Validate and read inputs `self.mapping`. 
+* Update `self.controller[name]['input'][now]`.
+* Return the result inputs
+
+## log_to_df
+Return a dataframe that contains the logs.  
+Inputs:
+* which(list): ['input','output','log'] or subset of this list.
+
+## save_and_clear
+Save the logs to csv files and clear the current log cache in memory.
+Inputs:
+* path(str): path to save the logs.
+
+## shutdown:
+shutdown the database.
+
+## set_input
+Set inputs for controllers.   
+Inputs:
+* inputs(dict): key = input variable name; value = input variable name.
+
+## get_output
+Get output of conroller {name}.  
+Inputs:
+* name(str): name of the controller.
+* keys(list): list of output variable names.
+
+## get_input
+Get input of conroller {name}.  
+Inputs:
+* name(str): name of the controller.
+* keys(list): list of input variable names.
+
+## class MyList
+This list is defined for the Python Basemanager to acheive process-safe. It is used by `execution_list`, `finished_controllers`, etc.
