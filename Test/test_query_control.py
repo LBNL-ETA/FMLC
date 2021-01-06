@@ -60,11 +60,10 @@ def test_sampletime():
     '''This tests if the sample time is working properly'''
     controller = {}
     controller['forecast1'] = {'fun': testcontroller1, 'sampletime': 3}
-    controller = controller_stack(controller, tz=-8, debug=True, parallel=True)
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
-    controller.initialize(mapping)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True)
     now = time.time()
     while time.time() - now < 10:
         controller.query_control(time.time())
@@ -81,7 +80,6 @@ def test_normal():
     controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
     controller['forecast2'] = {'fun':testcontroller3, 'sampletime':0}
     controller['forecast3'] = {'fun':testcontroller1, 'sampletime':0}
-    controller = controller_stack(controller, tz=-8, debug=True, parallel=True, timeout=2)
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -94,7 +92,7 @@ def test_normal():
     mapping['mpc1_b'] = 'forecast1_a'
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
-    controller.initialize(mapping)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
 
     for i in range(6):
         controller.query_control(time.time())
@@ -159,7 +157,6 @@ def test_stuckController():
     controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
     controller['forecast2'] = {'fun':testcontroller1, 'sampletime':0}
     controller['forecast3'] = {'fun':testcontroller1, 'sampletime':0}
-    controller = controller_stack(controller, tz=-8, debug=True, parallel=True, timeout=0.5)
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -172,7 +169,7 @@ def test_stuckController():
     mapping['mpc1_b'] = 'forecast1_a'
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
-    controller.initialize(mapping)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=0.5)
     
     # Catch warning.
     with warnings.catch_warnings(record=True) as w:
@@ -229,7 +226,6 @@ def test_stuckController():
     controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
     controller['forecast2'] = {'fun':testcontroller3, 'sampletime':0}
     controller['forecast3'] = {'fun':testcontroller1, 'sampletime':0}
-    controller = controller_stack(controller, tz=-8, debug=True, parallel=True, timeout=0.8)
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -242,7 +238,7 @@ def test_stuckController():
     mapping['mpc1_b'] = 'forecast1_a'
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
-    controller.initialize(mapping)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=0.8)
     
     #Catch Warnings
     with warnings.catch_warnings(record=True) as w:
@@ -295,7 +291,6 @@ def test_serial():
     controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
     controller['forecast2'] = {'fun':testcontroller3, 'sampletime':1}
     controller['forecast3'] = {'fun':testcontroller1, 'sampletime':1}
-    controller = controller_stack(controller, tz=-8, debug=True, parallel=False, timeout=2)
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -308,7 +303,7 @@ def test_serial():
     mapping['mpc1_b'] = 'forecast1_a'
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
-    controller.initialize(mapping)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=False, timeout=2)
 
     for i in range(6):
         controller.query_control(time.time())

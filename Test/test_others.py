@@ -61,7 +61,6 @@ def test_input_errors():
     controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
     controller['forecast2'] = {'fun':testcontroller3, 'sampletime':0}
     controller['forecast3'] = {'fun':testcontroller1, 'sampletime':0}
-    controller = controller_stack(controller, tz=-8, debug=True, parallel=True, timeout=2)
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -73,7 +72,7 @@ def test_input_errors():
     mapping['mpc1_b'] = 'forecast1_a'
     mapping['control1_a'] = 'mpc1_c'
     try:
-        controller.initialize(mapping)
+        controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
         AssertionError
     except KeyError as e:
         assert 'mapping' in str(e)
@@ -87,7 +86,6 @@ def test_input_errors():
     controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
     controller['forecast2'] = {'fun':testcontroller3, 'sampletime':0}
     controller['forecast3'] = {'fun':testcontroller1, 'sampletime':0}
-    controller = controller_stack(controller, tz=-8, debug=True, parallel=True, timeout=2)
 
     mapping = {}
     mapping['forecast1_d'] = 10
@@ -102,7 +100,7 @@ def test_input_errors():
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
     try:
-        controller.initialize(mapping)
+        controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
         AssertionError
     except KeyError as e:
         assert 'parameter' in str(e)
@@ -112,12 +110,11 @@ def test_input_errors():
 def test_init_once():
     controller = {}
     controller['forecast1'] = {'fun':testcontroller1, 'sampletime':0}
-    controller = controller_stack(controller, tz=-8, debug=True, parallel=True, timeout=2)
 
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
-    controller.initialize(mapping)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
 
     obj = controller.controller_objects['forecast1']
     for i in range(3):
