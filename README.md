@@ -15,6 +15,10 @@ The following link permits users to clone the source directory containing the [F
 
 See requirements.txt for dependencies.
 
+This [file](docs/baseclass.md) contains a detailed documentation of how to use baseclasses.py to create controller objects.   
+The file stackedclasses.py is a python script to handle the parallelization, timing/triggering, data logging, and error handling of multiple controller modules. Its detailed documentation can be found [here](docs/stackedclasses.md).    
+A complete example can be found [here](https://github.com/LBNL-ETA/FMLC/blob/master/Examples/Test.ipynb).   
+
 ## Example
 To illustrate and test its functionality, each module executes some tests, when called as *main*.
 
