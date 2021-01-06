@@ -58,7 +58,7 @@ class PythonDB_wrapper(object):
         pids = sp.Popen("ps aux | grep '"+self.name+"' | awk '{print $2, $13}'", shell=True, stdout=sp.PIPE)
         out, err = pids.communicate()
         for line in out.splitlines():
-            line = line.split(' ')
+            line = line.split(b' ')
             if line[1] == self.name:
                 os.kill(int(line[0]), signal.SIGKILL)
 
