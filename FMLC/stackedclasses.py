@@ -379,6 +379,7 @@ class controller_stack(object):
         """
     
         # Query controller
+        time.sleep(0.1)
         logger.debug('QueryCTRL {} at {} ({})'.format(name, pd.to_datetime(now, unit='s')+pd.DateOffset(hours=self.tz), now))
         inputs = self.update_inputs(name, now)
         if parallel:
