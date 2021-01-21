@@ -170,7 +170,6 @@ class controller_stack(object):
         self.__initialize_mapping(mapping)
         self.generate_execution_list()
 
-
     def __initialize_controller(self, now):
         """
         Initialize the controllers.
@@ -307,6 +306,7 @@ class controller_stack(object):
         if now - self.last_clear_time > self.clear_log_period:
             threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
         for task in sorted(self.execution_list.keys()):
+            time.sleep(0.05)
             queued = True
             while queued:
                 # CASE1: task is not running and a new step is needed.
@@ -379,7 +379,6 @@ class controller_stack(object):
         """
     
         # Query controller
-        time.sleep(0.1)
         logger.debug('QueryCTRL {} at {} ({})'.format(name, pd.to_datetime(now, unit='s')+pd.DateOffset(hours=self.tz), now))
         inputs = self.update_inputs(name, now)
         if parallel:
