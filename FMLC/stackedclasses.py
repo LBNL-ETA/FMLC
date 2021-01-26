@@ -18,6 +18,13 @@ logger = logging.getLogger(__name__)
 def log_to_db(name, ctrl, now, db_address):
     """
     A helper function to write records into database.
+    
+    Input
+    ---
+    name(str): name of the controller.
+    ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
+    now(float): The current time in seconds since the epoch as a floating point number.
+    db_address(str): address of the database
     """
     temp = {}
     for k, v in ctrl['input'][now].items():
@@ -27,11 +34,23 @@ def log_to_db(name, ctrl, now, db_address):
     if write_db(temp, db_address) == list():
         print("An error occurred when writing to database.")
 
-def control_worker_manager(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller, timeout_controller, timeout):
+def control_worker_manager(name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller, timeout_controller, timeout):
     """
     Spawn a new process to execute control_work function, which does the actual computation of the controller. Also monitors timeout.
+
+    Input
+    ---
+    name(str): name of the controller.
+    ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
+    now(float): The current time in seconds since the epoch as a floating point number.
+    db_address(str): address of the database
+    inputs(dict): a mapping of the controller's inputs.
+    executed_controller(list): list of names of executed controllers.
+    running_controller(list): list of names of running controllers.
+    timeout_controller(list): list of names of timed out controllers.
+    timeout(int): timeout threshold in seconds. 
     """
-    p = mp.Process(target=control_worker, args=(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller))
+    p = mp.Process(target=control_worker, args=(name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller))
     p.start()
     p.join(timeout=timeout)
     if p.is_alive():
@@ -40,9 +59,19 @@ def control_worker_manager(wid, name, now, db_address, debug, inputs, ctrl, exec
     else:
         p.terminate()
 
-def control_worker(wid, name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller):
+def control_worker(name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller):
     """
     Do the actual computation of the controller. Cache the new results into the controller's storage. Also send new records to database.
+
+    Input
+    ---
+    name(str): name of the controller.
+    ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
+    now(float): The current time in seconds since the epoch as a floating point number.
+    db_address(str): address of the database
+    inputs(dict): a mapping of the controller's inputs.
+    executed_controller(list): list of names of executed controllers.
+    running_controller(list): list of names of running controllers.
     """
     temp = {}
     temp['input'] = {}
@@ -58,7 +87,6 @@ def control_worker(wid, name, now, db_address, debug, inputs, ctrl, executed_con
     log_to_db(name, temp, now, db_address)
     executed_controller.add(name)
     running_controller.remove(name)
-    #print('return control_worker: ', name)
     
 def initialize_class(ctrl, data):
     """
@@ -141,7 +169,6 @@ class controller_stack(object):
         self.__initialize_database()
         self.__initialize_mapping(mapping)
         self.generate_execution_list()
-
 
     def __initialize_controller(self, now):
         """
@@ -279,6 +306,7 @@ class controller_stack(object):
         if now - self.last_clear_time > self.clear_log_period:
             threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
         for task in sorted(self.execution_list.keys()):
+            time.sleep(0.05)
             queued = True
             while queued:
                 # CASE1: task is not running and a new step is needed.
@@ -355,7 +383,7 @@ class controller_stack(object):
         inputs = self.update_inputs(name, now)
         if parallel:
             ctrl = self.controller_objects[name]
-            p = mp.Process(target=control_worker_manager, args=[1, name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers, self.timeout_controllers, self.timeout])
+            p = mp.Process(target=control_worker_manager, args=[name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers, self.timeout_controllers, self.timeout])
             self.running_controllers.add(name)
             p.start()
 
@@ -370,6 +398,11 @@ class controller_stack(object):
     def update_inputs(self, name, now):
         """
         Returns a mapping of the inputs of the given controller based on self.mapping
+
+        Input
+        ---
+        name(str): name of the controller:       
+        now(float): The current time in seconds since the epoch as a floating point number.
         """
         self.read_from_db()
         inputs = {}
@@ -391,6 +424,7 @@ class controller_stack(object):
     def read_from_db(self, refresh_device=True):
         """
         Read self.data_db from the database.
+        refresh_device(bool): whether refresh self.tz, self.debug, self.name from db
         """
         self.data_db = read_db(self.database.address)
         if refresh_device: self.refresh_device_from_db()
@@ -428,12 +462,23 @@ class controller_stack(object):
     
     def save_and_clear(self, path='log'):
         """Save the logs to csv files and clear 
-        the current log cache in memory."""
+        the current log cache in memory.
+        
+        Input 
+        ---
+        path(str): path to save the csv file.
+        """
         self.log_to_csv(path)
         self.clear_logs()
 
     def log_to_csv(self, new=False, path='log'):
-        """Save the logs to a csv file"""
+        """Save the logs to a csv file
+
+        Input 
+        ---
+        new(bool): whether the csv has already been created.
+        path(str): path to save the csv file.
+        """
         dfs = self.log_to_df()
         mode = 'ab' if not new else 'wb'
         for name, log in dfs.items():
@@ -451,7 +496,12 @@ class controller_stack(object):
         self.database.kill_db()
         
     def set_input(self, inputs):
-        """ Set inputs for controllers"""
+        """ Set inputs for controllers
+        
+        Input
+        ---
+        inputs(dict): key = input variable name; value = input variable name.
+        """
         for k, v in inputs.items():
             if k in list(self.mapping.keys()):
                 self.mapping[k] = v
@@ -459,13 +509,25 @@ class controller_stack(object):
                 raise KeyError('{} not a control parameter.'.format(k))
                 
     def get_output(self, name, keys=[]):
-        """Get output of conroller {name} """
+        """Get output of conroller {name} 
+
+        Input
+        ---
+        name(str): name of the controller.
+        keys(list): list of input variable names.
+        """
         if self.parallel: ctrl = self.controller_objects[name]
         else: ctrl = self.controller[name]['fun']
         return ctrl.get_output(keys=keys)
 
     def get_input(self, name, keys=[]):
-        """Get input of conroller {name} """
+        """Get input of conroller {name} 
+        
+        Input
+        ---
+        name(str): name of the controller.
+        keys(list): list of input variable names.
+        """
         if self.parallel: ctrl = self.controller_objects[name]
         else: ctrl = self.controller[name]['fun']
         return ctrl.get_input(keys=keys)

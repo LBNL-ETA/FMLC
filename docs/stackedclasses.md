@@ -145,7 +145,7 @@ Inputs:
 ## update_inputs
 Returns a mapping of the inputs of the given controller based on self.mapping.  
 Inputs: 
-* name(str): name of the controller:       
+* name(str): name of the controller.      
 * now(float): The current time in seconds since the epoch as a floating point number.
   
 Implementation Logic:
@@ -183,5 +183,50 @@ Inputs:
 * name(str): name of the controller.
 * keys(list): list of input variable names.
 
+## log\_to\_db  
+A helper function to write records into database.   
+Inputs:
+* name(str): name of the controller.
+* ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
+* now(float): The current time in seconds since the epoch as a floating point number.
+* db_address(str): address of the database
+  
+Implementation Logic:   
+* Iterate through each input output pairs of the controller and save them to the database
+
+
+## control\_worker\_manager
+Spawn a new process to execute control_work function, which does the actual computation of the controller. Also monitors timeout.   
+Inputs: 
+* name(str): name of the controller.
+* ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
+* now(float): The current time in seconds since the epoch as a floating point number.
+* db_address(str): address of the database
+* inputs(dict): a mapping of the controller's inputs.
+* executed_controller(list): list of names of executed controllers.
+* running_controller(list): list of names of running controllers.
+* timeout_controller(list): list of names of timed out controllers.
+* timeout(int): timeout threshold in seconds. 
+
+Implementation Logic:   
+* start a `control_worker` process, wait for `timeout` second. If the process time out, terminate the process and add it to the `timeout` list.
+
+## control_worker
+Do the actual computation of the controller. Cache the new results into the controller's storage. Also send new records to database.
+
+Inputs: 
+* name(str): name of the controller.
+* ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
+* now(float): The current time in seconds since the epoch as a floating point number.
+* db_address(str): address of the database
+* inputs(dict): a mapping of the controller's inputs.
+* executed_controller(list): list of names of executed controllers.
+* running_controller(list): list of names of running controllers.
+
+Implementation Logic:    
+* Call the `do_step` function of the controller and save the result to a dictionary `temp`.
+* Call `update_storage` function to save the records into the controller's storage in memory.
+* Call `log_to_db` function to save the records into the database.
+* Add the controller to the `executed_controller` list and remove it from the `running_controller` list.
 ## class MyList
 This list is defined for the Python Basemanager to acheive process-safe. It is used by `execution_list`, `finished_controllers`, etc.
