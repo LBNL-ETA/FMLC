@@ -9,7 +9,8 @@ from .pythonDB.utility import PythonDB_wrapper, write_db, read_db
 
 import multiprocessing as mp
 import threading
-from multiprocessing.managers import BaseManager
+from multiprocessing import Manager
+from multiprocessing.managers import SyncManager
 
 
 # Setup logger
@@ -55,7 +56,7 @@ def control_worker_manager(name, now, db_address, debug, inputs, ctrl, executed_
     p.join(timeout=timeout)
     if p.is_alive():
         p.terminate()
-        timeout_controller.add(name)
+        timeout_controller.append(name)
     else:
         p.terminate()
 
@@ -85,7 +86,7 @@ def control_worker(name, now, db_address, debug, inputs, ctrl, executed_controll
     temp['last'] = now
     ctrl.update_storage(temp)
     log_to_db(name, temp, now, db_address)
-    executed_controller.add(name)
+    executed_controller.append(name)
     running_controller.remove(name)
     
 def initialize_class(ctrl, data):
@@ -181,8 +182,8 @@ class controller_stack(object):
         """
         # Modify self.controllers to contain more information. Register the controllers on the BaseManager.
         for name, ctrl in self.controller.items():
-            logger.debug('Add {} to BaseManager'.format(name))
-            exec("BaseManager.register(name, ctrl['fun'])")
+            logger.debug('Add {} to SyncManager'.format(name))
+            exec("SyncManager.register(name, ctrl['fun'])")
             ctrl['fun'] = ctrl['fun']()
             ctrl['last'] = 0
             ctrl['inputs'] = ctrl['fun'].input.keys()
@@ -194,12 +195,11 @@ class controller_stack(object):
             ctrl['input'][now] = {}
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
-        manager = BaseManager()
-        manager.register('MyList', MyList)
-        manager.start()
-        self.running_controllers = manager.MyList()
-        self.executed_controllers = manager.MyList()
-        self.timeout_controllers = manager.MyList()
+        manager = Manager()
+        #manager.start()
+        self.running_controllers = manager.list([])
+        self.executed_controllers = manager.list([])
+        self.timeout_controllers = manager.list([])
 
         # Initialize each controller's data storage with the enriched self.controller dictionaries.
         self.controller_objects = {}
@@ -306,7 +306,7 @@ class controller_stack(object):
         if now - self.last_clear_time > self.clear_log_period:
             threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
         for task in sorted(self.execution_list.keys()):
-            time.sleep(0.05)
+            #time.sleep(0.05)
             queued = True
             while queued:
                 # CASE1: task is not running and a new step is needed.
@@ -328,12 +328,12 @@ class controller_stack(object):
                     # Check if next module to start
                     finished_controllers = []
                     for n in self.execution_list[task]['controller']:
-                        if self.executed_controllers.contains(n):
+                        if n in self.executed_controllers:
                             finished_controllers.append(n) # Store executed controller in list
-                        if self.timeout_controllers.contains(n):
+                        if n in self.timeout_controllers:
                             # A controller got stuck.
                             self.timeout_controllers.remove(n)
-                            if self.running_controllers.contains(n):
+                            if n in self.running_controllers:
                                 self.running_controllers.remove(n)
                             self.execution_list[task]['running'] = False
                             print('Controller timeout', n)
@@ -358,7 +358,7 @@ class controller_stack(object):
                         elif len(finished_controllers) > 1:
                             warnings.warn('Multiple entiries of Controller in executed: {}. Resetting controller.'.format(finished_controllers), Warning)
                             for n in self.execution_list[task]['controller']:
-                                if self.executed_controllers.contains(n):
+                                if n in self.executed_controllers:
                                     self.executed_controllers.remove_all(n)
                         queued = not self.parallel
                 else:
@@ -384,7 +384,7 @@ class controller_stack(object):
         if parallel:
             ctrl = self.controller_objects[name]
             p = mp.Process(target=control_worker_manager, args=[name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers, self.timeout_controllers, self.timeout])
-            self.running_controllers.add(name)
+            self.running_controllers.append(name)
             p.start()
 
         else:
@@ -393,7 +393,7 @@ class controller_stack(object):
             ctrl['last'] = now
             log_to_db(name, ctrl, now, self.database.address)
             self.read_from_db()
-            self.executed_controllers.add(name)
+            self.executed_controllers.append(name)
                 
     def update_inputs(self, name, now):
         """
