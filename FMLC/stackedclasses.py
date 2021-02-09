@@ -260,13 +260,12 @@ class controller_stack(object):
         """
         Generate self.execution_list and execution_map.
 
-        self.execution_list is a map of dictionaries. The keys are index numbers, and the values are dictionaries
-        which the controllers with input/output dependencies are in the same dictionary(subtask).
+        self.execution_list is a list of dictionaries which the controllers with input/output dependencies are in the same dictionary(subtask).
 
         execution_map is a dictionary used to help make self.execution_list with controller names being the keys and the index of the dictionary which
         contains the controller in self.execution_list being the values.
         """
-        self.execution_list = {}
+        self.execution_list = []
         execution_map = {}
         controller_queue = sorted(self.controller.keys())
         i = 0
@@ -286,7 +285,7 @@ class controller_stack(object):
                     # Re-add to back of queue
                     controller_queue.append(name)
             else:
-                self.execution_list[i] = {'controller':[name], 'next':0 + ctrl['sampletime'], 'running':False}
+                self.execution_list.append({'controller':[name], 'next':0 + ctrl['sampletime'], 'running':False})
                 execution_map[name] = i
                 i += 1
         if self.debug:
@@ -307,16 +306,16 @@ class controller_stack(object):
         self.read_from_db()
         if now - self.last_clear_time > self.clear_log_period:
             threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
-        for task in sorted(self.execution_list.keys()):
+        for task in self.execution_list:
             #time.sleep(0.05)
             queued = True
             while queued:
                 # CASE1: task is not running and a new step is needed.
-                if not self.execution_list[task]['running'] and now >= self.execution_list[task]['next']:
-                    name = self.execution_list[task]['controller'][0]
+                if not task['running'] and now >= task['next']:
+                    name = task['controller'][0]
                     # Not running, start task
-                    self.execution_list[task]['running'] = True
-                    self.execution_list[task]['next'] = now + self.controller[self.execution_list[task]['controller'][0]]['sampletime']
+                    task['running'] = True
+                    task['next'] = now + self.controller[task['controller'][0]]['sampletime']
                     # Do control
                     logger.debug('Executing Controller "{!s}"'.format(name))
                     ctrl = self.controller[name]
@@ -325,11 +324,11 @@ class controller_stack(object):
                         queued = False
                     else:
                         queued = True
-                elif self.execution_list[task]['running']:
+                elif task['running']:
                     reset = False
                     # Check if next module to start
                     finished_controllers = []
-                    for n in self.execution_list[task]['controller']:
+                    for n in task['controller']:
                         if n in self.executed_controllers:
                             finished_controllers.append(n) # Store executed controller in list
                         if n in self.timeout_controllers:
@@ -337,7 +336,7 @@ class controller_stack(object):
                             self.timeout_controllers.remove(n)
                             if n in self.running_controllers:
                                 self.running_controllers.remove(n)
-                            self.execution_list[task]['running'] = False
+                            task['running'] = False
                             print('Controller timeout', n)
                             warnings.warn('Controller {} timeout'.format(n), Warning)
                             reset = True
@@ -345,21 +344,21 @@ class controller_stack(object):
                     if reset:
                         break
                     # CASE2: all subtasks in the task are already executed
-                    if self.execution_list[task]['controller'][-1] in finished_controllers:
+                    if task['controller'][-1] in finished_controllers:
                         # Control option done
-                        self.executed_controllers.remove(self.execution_list[task]['controller'][-1])
-                        self.execution_list[task]['running'] = False
+                        self.executed_controllers.remove(task['controller'][-1])
+                        task['running'] = False
                     else:
                         if len(finished_controllers) == 1: # If one controller in list then next one to be spawn
-                            subtask_id = self.execution_list[task]['controller'].index(finished_controllers[0])
+                            subtask_id = task['controller'].index(finished_controllers[0])
                             self.executed_controllers.remove(finished_controllers[0]) # Clear the execution list
-                            name = self.execution_list[task]['controller'][subtask_id+1]
+                            name = task['controller'][subtask_id+1]
                             ctrl = self.controller[name]
                             logger.debug('Executing Controller "{!s}"'.format(name))
                             self.do_control(name, ctrl, now, parallel=self.parallel)
                         elif len(finished_controllers) > 1:
                             warnings.warn('Multiple entiries of Controller in executed: {}. Resetting controller.'.format(finished_controllers), Warning)
-                            for n in self.execution_list[task]['controller']:
+                            for n in task['controller']:
                                 if n in self.executed_controllers:
                                     self.executed_controllers.remove_all(n)
                         queued = not self.parallel

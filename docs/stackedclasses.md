@@ -112,8 +112,8 @@ Implementation Logic:
 ## generate_execution_list
 Generate self.execution_list and self.execution_map. 
 Implementation Logic:
-*  Iterate through all controllers to generate `self.execution_list`. `self.execution_list` is a dict generated from the elements with numeric sample times with index numbers as keys and dicts containing the following keys:
-   *`controller` is a list of names for the controller (1 element for now)
+*  Iterate through all controllers to generate `self.execution_list`. `self.execution_list` is a list of dicts representing controllers with no dependencies ("parent" controllers) containing the following keys:
+   *`controller` is a list of names for controllers dependent on this one (1 element for now)
    *`next` contains the next time we run the controller
    *`running` is a boolean telling us whether the controller is running or not (set to false)
 * `execution_map` is a dict used to help make `self.execution_list`. It maps the names of controllers in `self.execution_list` to their indices. If a controller has a dependent sample time, this map is used to find the parent controller in constant time, and the dependent controller is then added to the parent's `controller` list and also mapped in `execution_map` to the same index as its parent in case it has any dependents.
@@ -127,13 +127,13 @@ Inputs:
 
 Implementation Logic:
 * Save and clear the logs in memory if needed.
-* For each task in `self.execution_list`:
+* For each `task` in `self.execution_list`:
   * If the task is not running and a new step is needed:
     * Let the first controller in the task do control. Update the `self.execution_list`.
-  * If `self.execution_list[task]['running']` still shows the task is running.
+  * If `task['running']` still shows the task is running.
     * If a controller in the task got stuck, reset.
     * If the previous controller has finished executing and there is a succeeding controller, let the succedding controller do control.
-    * If the last controller has finished running, update `self.execution_list[task]['running']` to be `False`
+    * If the last controller has finished running, update `task['running']` to be `False`
     * If the quenue in `self.finished_controllers` gets clogged up, reset.
 
 ## do_control  
