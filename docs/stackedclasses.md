@@ -110,9 +110,13 @@ Implementation Logic:
 * Iterate through the `inputs` field of each controller and check if they are mapped in `mapping`. Also checks if there are extraneous parameter in `mapping`.
 
 ## generate_execution_list
-Generate self.execution_list. 
+Generate self.execution_list and self.execution_map. 
 Implementation Logic:
-*  Iterate through all controllers to generate `self.execution_list`. `self.execution_list` is a map of dictionaries. The keys are index numbers, and the values are dictionaries which the controllers with input/output dependencies are in the same dictionary(task). 
+*  Iterate through all controllers to generate `self.execution_list`. `self.execution_list` is a dict generated from the elements with numeric sample times with index numbers as keys and dicts containing the following keys:
+   *`controller` is a list of names for the controller (1 element for now)
+   *`next` contains the next time we run the controller
+   *`running` is a boolean telling us whether the controller is running or not (set to false)
+* `execution_map` is a dict used to help make `self.execution_list`. It maps the names of controllers in `self.execution_list` to their indices. If a controller has a dependent sample time, this map is used to find the parent controller in constant time, and the dependent controller is then added to the parent's `controller` list and also mapped in `execution_map` to the same index as its parent in case it has any dependents.
 
 ## query_control
 Trigger computations for controllers if the sample times have arrived.
