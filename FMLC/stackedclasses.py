@@ -258,38 +258,40 @@ class controller_stack(object):
         
     def generate_execution_list(self):
         """
-        Generate self.execution_list and self.execution_map.
+        Generate self.execution_list and execution_map.
 
         self.execution_list is a map of dictionaries. The keys are index numbers, and the values are dictionaries
         which the controllers with input/output dependencies are in the same dictionary(subtask).
 
-        self.execution_map is a dictionary with controller names being the keys and the index of the dictionary which
+        execution_map is a dictionary used to help make self.execution_list with controller names being the keys and the index of the dictionary which
         contains the controller in self.execution_list being the values.
         """
         self.execution_list = {}
-        self.execution_map = {}
-        all_controller = sorted(self.controller.keys())
+        execution_map = {}
+        controller_queue = sorted(self.controller.keys())
         i = 0
-        while len(all_controller) > 0:
-            name = all_controller[0]
+        while len(controller_queue) > 0:
+            name = controller_queue.pop(0)
             ctrl = self.controller[name]
             if type(ctrl['sampletime']) == type(''):
-                if ctrl['sampletime'] not in all_controller:
-                    self.execution_list[self.execution_map[ctrl['sampletime']]]['controller'].append(name)
-                    self.execution_map[name] = self.execution_map[ctrl['sampletime']]
-                    all_controller.remove(name)
+                #checking for bad mappings. current fix is to time them out
+                if ctrl not in self.controller:
+                    print("Controller " + name + " had a faulty mapping for sample time. It is being removed from the stack")
+                    self.controller.pop(name)
+                    pass
+                elif ctrl['sampletime'] not in controller_queue:
+                    self.execution_list[execution_map[ctrl['sampletime']]]['controller'].append(name)
+                    execution_map[name] = execution_map[ctrl['sampletime']]
                 else:
-                    # Shuffle
-                    all_controller.remove(name)
-                    all_controller.append(name)
+                    # Re-add to back of queue
+                    controller_queue.append(name)
             else:
                 self.execution_list[i] = {'controller':[name], 'next':0 + ctrl['sampletime'], 'running':False}
-                self.execution_map[name] = i
+                execution_map[name] = i
                 i += 1
-                all_controller.remove(name)
         if self.debug:
             logger.debug('Execution list: {!s}'.format(self.execution_list))
-            logger.debug('Execution map: {!s}'.format(self.execution_map))
+            logger.debug('Execution map: {!s}'.format(execution_map))
 
     def query_control(self, now):
         """
