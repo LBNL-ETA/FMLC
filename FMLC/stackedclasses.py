@@ -46,9 +46,9 @@ def control_worker_manager(name, now, db_address, debug, inputs, ctrl, executed_
     now(float): The current time in seconds since the epoch as a floating point number.
     db_address(str): address of the database
     inputs(dict): a mapping of the controller's inputs.
-    executed_controller(list): list of names of executed controllers.
-    running_controller(list): list of names of running controllers.
-    timeout_controller(list): list of names of timed out controllers.
+    executed_controller(dict): functionally a set of names of executed controllers.
+    running_controller(dict): functionally a set of names of running controllers.
+    timeout_controller(dict): functionally a set of names of timed out controllers.
     timeout(int): timeout threshold in seconds. 
     """
     p = mp.Process(target=control_worker, args=(name, now, db_address, debug, inputs, ctrl, executed_controller, running_controller))
@@ -56,7 +56,7 @@ def control_worker_manager(name, now, db_address, debug, inputs, ctrl, executed_
     p.join(timeout=timeout)
     if p.is_alive():
         p.terminate()
-        timeout_controller.append(name)
+        timeout_controller[name] = None
     else:
         p.terminate()
 
@@ -71,8 +71,8 @@ def control_worker(name, now, db_address, debug, inputs, ctrl, executed_controll
     now(float): The current time in seconds since the epoch as a floating point number.
     db_address(str): address of the database
     inputs(dict): a mapping of the controller's inputs.
-    executed_controller(list): list of names of executed controllers.
-    running_controller(list): list of names of running controllers.
+    executed_controller(dict): functionally a set of names of executed controllers.
+    running_controller(dict): functionally a set of names of running controllers.
     """
     temp = {}
     temp['input'] = {}
@@ -86,8 +86,8 @@ def control_worker(name, now, db_address, debug, inputs, ctrl, executed_controll
     temp['last'] = now
     ctrl.update_storage(temp)
     log_to_db(name, temp, now, db_address)
-    executed_controller.append(name)
-    running_controller.remove(name)
+    executed_controller[name] = None
+    running_controller.pop(name, None)
     
 def initialize_class(ctrl, data):
     """
@@ -197,9 +197,9 @@ class controller_stack(object):
             self.controller[name] = ctrl
         manager = Manager()
         #manager.start()
-        self.running_controllers = manager.list([])
-        self.executed_controllers = manager.list([])
-        self.timeout_controllers = manager.list([])
+        self.running_controllers = manager.dict()
+        self.executed_controllers = manager.dict()
+        self.timeout_controllers = manager.dict()
 
         # Initialize each controller's data storage with the enriched self.controller dictionaries.
         self.controller_objects = {}
@@ -304,10 +304,10 @@ class controller_stack(object):
         now(float): The current time in seconds since the epoch as a floating point number.
         """
         self.read_from_db()
+        #If the cdeadline for clearing the log has passed, we open a thread that clears the log
         if now - self.last_clear_time > self.clear_log_period:
             threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
         for task in self.execution_list:
-            #time.sleep(0.05)
             queued = True
             while queued:
                 # CASE1: task is not running and a new step is needed.
@@ -327,15 +327,15 @@ class controller_stack(object):
                 elif task['running']:
                     reset = False
                     # Check if next module to start
-                    finished_controllers = []
+                    finished_controllers = set([])
                     for n in task['controller']:
                         if n in self.executed_controllers:
-                            finished_controllers.append(n) # Store executed controller in list
+                            finished_controllers.add(n) # Store executed controller in list
                         if n in self.timeout_controllers:
                             # A controller got stuck.
-                            self.timeout_controllers.remove(n)
+                            self.timeout_controllers.pop(n, None)
                             if n in self.running_controllers:
-                                self.running_controllers.remove(n)
+                                self.running_controllers.pop(n, None)
                             task['running'] = False
                             print('Controller timeout', n)
                             warnings.warn('Controller {} timeout'.format(n), Warning)
@@ -346,12 +346,13 @@ class controller_stack(object):
                     # CASE2: all subtasks in the task are already executed
                     if task['controller'][-1] in finished_controllers:
                         # Control option done
-                        self.executed_controllers.remove(task['controller'][-1])
+                        self.executed_controllers.pop(task['controller'][-1], None)
                         task['running'] = False
                     else:
                         if len(finished_controllers) == 1: # If one controller in list then next one to be spawn
-                            subtask_id = task['controller'].index(finished_controllers[0])
-                            self.executed_controllers.remove(finished_controllers[0]) # Clear the execution list
+                            elem = finished_controllers.pop()
+                            subtask_id = task['controller'].index(elem)
+                            self.executed_controllers.pop(elem, None) # Clear the execution list
                             name = task['controller'][subtask_id+1]
                             ctrl = self.controller[name]
                             logger.debug('Executing Controller "{!s}"'.format(name))
@@ -359,8 +360,8 @@ class controller_stack(object):
                         elif len(finished_controllers) > 1:
                             warnings.warn('Multiple entiries of Controller in executed: {}. Resetting controller.'.format(finished_controllers), Warning)
                             for n in task['controller']:
-                                if n in self.executed_controllers:
-                                    self.executed_controllers.remove_all(n)
+                                while n in self.executed_controllers:
+                                    self.executed_controllers.pop(n, None)
                         queued = not self.parallel
                 else:
                     queued = False
@@ -385,7 +386,7 @@ class controller_stack(object):
         if parallel:
             ctrl = self.controller_objects[name]
             p = mp.Process(target=control_worker_manager, args=[name, now, self.database.address, self.debug, inputs, ctrl, self.executed_controllers, self.running_controllers, self.timeout_controllers, self.timeout])
-            self.running_controllers.append(name)
+            self.running_controllers[name] = None
             p.start()
 
         else:
@@ -394,7 +395,7 @@ class controller_stack(object):
             ctrl['last'] = now
             log_to_db(name, ctrl, now, self.database.address)
             self.read_from_db()
-            self.executed_controllers.append(name)
+            self.executed_controllers[name] = None
                 
     def update_inputs(self, name, now):
         """
@@ -533,29 +534,3 @@ class controller_stack(object):
         else: ctrl = self.controller[name]['fun']
         return ctrl.get_input(keys=keys)
 
-
-class MyList(object):
-    ''' Create a list class for Basemanager.'''
-    def __init__(self):
-        self.list = list()
-
-    def contains(self, x):
-        return x in self.list
-
-    def add(self, x):
-        self.list.append(x)
-
-    def remove(self, x):
-        self.list.remove(x)
-    
-    def remove_all(self, x):
-        self.list = [i for i in self.list if i != x]
-    
-    def size(self):
-        return len(self.list)
-
-    def __str__(self):
-        return self.list.__str__()
-
-    def __repr__(self):
-        return self.list.__repr__()
