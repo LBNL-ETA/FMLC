@@ -274,7 +274,7 @@ class controller_stack(object):
             ctrl = self.controller[name]
             if type(ctrl['sampletime']) == type(''):
                 #checking for bad mappings. current fix is to time them out
-                if ctrl not in self.controller:
+                if name not in self.controller:
                     print("Controller " + name + " had a faulty mapping for sample time. It is being removed from the stack")
                     self.controller.pop(name)
                     pass
@@ -304,7 +304,7 @@ class controller_stack(object):
         now(float): The current time in seconds since the epoch as a floating point number.
         """
         self.read_from_db()
-        #If the cdeadline for clearing the log has passed, we open a thread that clears the log
+        #If the deadline for clearing the log has passed, we open a thread that clears the log
         if now - self.last_clear_time > self.clear_log_period:
             threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
         for task in self.execution_list:
