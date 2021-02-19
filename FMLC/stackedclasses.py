@@ -143,6 +143,8 @@ class controller_stack(object):
         self.clear_log_period = log_config['clear_log_period']
         self.log_path = log_config['log_path']
         self.last_clear_time = now
+        if parallel:
+            self.lock = threading.Lock()
 
     def __initialize(self, mapping, now):
         """
@@ -303,7 +305,7 @@ class controller_stack(object):
         -----
         now(float): The current time in seconds since the epoch as a floating point number.
         """
-        threads=[]
+        threads={}
         self.read_from_db()
         #If the deadline for clearing the log has passed, we open a thread that clears the log
         if now - self.last_clear_time > self.clear_log_period:
@@ -320,8 +322,8 @@ class controller_stack(object):
                     # Do control
                     logger.debug('Executing Controller "{!s}"'.format(name))
                     if self.parallel:
-                        threads.append(threading.Thread(target=controller_stack.helper, args =(self, task, now, {}, {}, {})))
-                        threads[-1].start()
+                        threads[name] = (threading.Thread(target=controller_stack.helper, args =(self, task, now, {}, {}, {})))
+                        threads[name].start()
                         queued = False
                     else:
                         ctrl = self.controller[name]
@@ -366,13 +368,17 @@ class controller_stack(object):
                                     self.executed_controllers.pop(n, None)
                 else:
                     queued = False
-        for thread in threads:
-            thread.join()
+        for thread_name in threads:
+            thread = threads[thread_name]
+            thread.join(timeout=self.timeout)
+            if thread.is_alive():
+                thread.terminate()
+                print('Controller timeout', thread_name)
+                warnings.warn('Controller {} timeout'.format(thread_name), Warning)
             
     def helper(self, task, now, executed_controllers, running_controllers, timeout_controllers):
         for name in task['controller']:
             ctrl = self.controller[name]
-            print(name)
             logger.debug('Executing Controller "{!s}"'.format(name))
             self.do_control(name, ctrl, now, parallel=True, executed_controllers=executed_controllers, running_controllers=running_controllers, timeout_controllers=timeout_controllers)
         task['running'] = False
@@ -394,8 +400,10 @@ class controller_stack(object):
     
         # Query controller
         logger.debug('QueryCTRL {} at {} ({})'.format(name, pd.to_datetime(now, unit='s')+pd.DateOffset(hours=self.tz), now))
-        inputs = self.update_inputs(name, now)
         if parallel:
+            self.lock.acquire()
+            inputs = self.update_inputs(name, now)
+            self.lock.release()
             ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
             ctrl['output'][now] = copy_dict(ctrl['fun'].output)
             ctrl['last'] = now
@@ -403,6 +411,7 @@ class controller_stack(object):
             self.read_from_db()
             executed_controllers[name] = None
         else:
+            inputs = self.update_inputs(name, now)
             ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
             ctrl['output'][now] = copy_dict(ctrl['fun'].output)
             ctrl['last'] = now
