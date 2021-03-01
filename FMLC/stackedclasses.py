@@ -252,6 +252,7 @@ class controller_stack(object):
         threads={}
         if now - self.last_refresh_time > self.refresh_period:
             self.read_from_db(refresh_device=True)
+            self.last_refresh_time = now
         else:
             self.read_from_db()
         #If the deadline for clearing the log has passed, we open a thread that clears the log
@@ -259,7 +260,7 @@ class controller_stack(object):
             threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
         for task in self.execution_list:
             # CASE1: task is not running and a new step is needed.
-            if now >= task['next']:
+            if now >= task['next'] and not task['running']:
                 name = task['controller'][0]
                 # Not running, start task
                 task['running'] = True
@@ -272,9 +273,11 @@ class controller_stack(object):
                 else:
                     ctrl = self.controller[name]
                     self.run_controller_queue(task, now)
+        """
         for thread_name in threads:
             thread = threads[thread_name]
             thread.join()
+        """
             
     def run_controller_queue(self, task, now):
         """
@@ -283,14 +286,14 @@ class controller_stack(object):
 
         Input:
         -------
-        task: Container for the controller queue
-        now: time for when the controllers are being evaluated
+        task(dict): Container for the controller queue
+        now(float): time for when the controllers are being evaluated
         """
         for name in task['controller']:
             ctrl = self.controller[name]
             logger.debug('Executing Controller "{!s}"'.format(name))
             if self.parallel:
-                p = threading.Thread(target=self.do_control, args=(name, ctrl, now, self.parallel))
+                p = threading.Thread(target=self.do_control, args=(name, ctrl, now, self.parallel), daemon=True)
                 p.start()
                 p.join(timeout=self.timeout)
                 if p.is_alive():
