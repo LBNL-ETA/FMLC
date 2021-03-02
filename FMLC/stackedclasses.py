@@ -9,8 +9,6 @@ from .pythonDB.utility import PythonDB_wrapper, write_db, read_db
 
 import multiprocessing as mp
 import threading
-from multiprocessing import Manager
-from multiprocessing.managers import SyncManager
 
 
 # Setup logger
@@ -130,10 +128,10 @@ class controller_stack(object):
         now(float): The time in seconds since the epoch.
 
         """
+        self.controller_objects = {}
         # Modify self.controllers to contain more information. Register the controllers on the BaseManager.
         for name, ctrl in self.controller.items():
             logger.debug('Add {} to SyncManager'.format(name))
-            exec("SyncManager.register(name, ctrl['fun'])")
             ctrl['fun'] = ctrl['fun']()
             ctrl['last'] = 0
             ctrl['inputs'] = ctrl['fun'].input.keys()
@@ -145,21 +143,7 @@ class controller_stack(object):
             ctrl['input'][now] = {}
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
-        manager = Manager()
-
-        # Initialize each controller's data storage with the enriched self.controller dictionaries.
-        self.controller_objects = {}
-        pool = []
-        for name in list(self.controller.keys()):
-            # Register controller processes
-            exec('self.controller_objects[name] = manager.'+name+'()')
-            # Initialize controller
-            p = mp.Process(target=initialize_class, args=[self.controller_objects[name], self.controller[name]])
-            pool.append(p)
-            p.start()
-        for p in pool:
-            p.join()
-        logger.debug(self.controller_objects)
+            self.controller_objects = ctrl['fun']
 
     def __initialize_database(self):
         """
@@ -335,7 +319,14 @@ class controller_stack(object):
             ctrl['last'] = now
             log_to_db(name, ctrl, now, self.database.address)
             self.read_from_db()
-                
+
+    def run_query_control_for(self, seconds, timestep=0.05):
+        t = time.time()
+        end_time = t + seconds + timestep
+        while time.time() <= end_time:
+            time.sleep(timestep)
+            threading.Thread(target=controller_stack.query_control, args=(self, time.time()), daemon=True).start()
+
     def update_inputs(self, name, now):
         """
         Returns a mapping of the inputs of the given controller based on self.mapping
