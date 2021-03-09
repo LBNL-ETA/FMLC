@@ -131,7 +131,6 @@ class controller_stack(object):
         self.controller_objects = {}
         # Modify self.controllers to contain more information. Register the controllers on the BaseManager.
         for name, ctrl in self.controller.items():
-            logger.debug('Add {} to SyncManager'.format(name))
             ctrl['fun'] = ctrl['fun']()
             ctrl['last'] = 0
             ctrl['inputs'] = ctrl['fun'].input.keys()
@@ -326,6 +325,7 @@ class controller_stack(object):
         while time.time() <= end_time:
             time.sleep(timestep)
             threading.Thread(target=controller_stack.query_control, args=(self, time.time()), daemon=True).start()
+        time.sleep(self.timeout)
 
     def update_inputs(self, name, now):
         """
