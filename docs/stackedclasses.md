@@ -42,6 +42,7 @@ Inputs:
 * debug(bool): If `True`, some extra print statements will be added for debugging purpose. Unless you are a developers of this package, you should always set it false. The default value is false.
 * name(str): Name you want to give to the database. 
 * parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. Each controller will spawn its own processes when perform a computation.
+* workers (int): Value to feed into the max_workers argument for `self.executor`. THIS IS VERY LOW BY DEFAULT, TRY INCREASING A LOT TO SEE BETTER RESULTS
 * now(float): The time in seconds since the epoch.
 * debug_db(bool): Default set to false.
 * log_config(dict): A dictionary to configure log saving. The is mainly used by the `save_and_clear` method, which save the logs to csv files and clear the logs in memory.
@@ -81,11 +82,7 @@ Inputs:
 * now(float): The time in seconds since the epoch.
   
 Implementation Logic:
-* It sets up the dictionary representation of each controller, and then registers lists `running_controllers`, `executed_controllers`, and `timeout_controllers` in `BaseManager`, so that they can be syncronized across multiple processes. 
-  * `running_controllers`: List to keep track of all the running controller in the stackedclasses object.
-  * `executed_controllers`: List to keep track of the controllers just finished executing. Controllers will be removed after the next controller in the same task start executing. For the definition of task, see `generate_execution_list`.
-  * `timeout_controllers`: List to keep track of the timed-out controllers.
-* Use multiprocessing to update the storage of controllers. The storage keeps track of the inputs, outputs, and logs of each controller. 
+* Loops through the items in `self.controllers` and initializes them and their inputs
 
 ## \_\_initialize_database
 Initialize the database columns. Columns include input & output variables for each device, timezone, dev_debug, dev_nodename, and dev_parallel.
@@ -140,11 +137,11 @@ Inputs:
 
 Implementation Logic:
 * For each controller in task["controller"], we:
-   * Either serially or parallely call `self.do_control` for each input
+   * Either serially or parallely call `self.do_control` for each input if the controller is not running elsewhere at the time
 
 ## do_control  
-In single thread mod, this function will perform the actual computation of a controller.  
-In multi thread mod, this function will spawn a new process called control_worker_manager. The new process will handle the computation.   
+This function will perform the actual computation of a controller.
+ 
 Inputs:
 * name(str): name of the controller:
 * ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.

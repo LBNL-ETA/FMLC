@@ -1,5 +1,6 @@
 import time
 import warnings
+import os
 
 import pandas as pd
 from copy import deepcopy as copy_dict
@@ -7,7 +8,7 @@ import logging
 
 from .pythonDB.utility import PythonDB_wrapper, write_db, read_db
 
-import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor
 import threading
 
 
@@ -41,9 +42,11 @@ def initialize_class(ctrl, data):
 
 class controller_stack(object):
     def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, \
-        timeout=5, now=time.time(), log_config={'clear_log_period': 24*60*60, 'refresh_period':5, 'log_path':'./log'}):
+        timeout=5, now=time.time(), workers=os.cpu_count()*5, log_config={'clear_log_period': 24*60*60, 'refresh_period':5, 'log_path':'./log'}):
         """
-        Initialize the controller stack object.
+        Initialize the controller stack object. 
+        
+        NOTE: The default value for workers is quite low. Try cranking it up to at least 100 for better results
 
         Input
         -----
@@ -71,8 +74,9 @@ class controller_stack(object):
         tz(int): utc/GMT time zone
         debug(bool): If `True`, some extra print statements will be added for debugging purpose. Unless you are a developers of this package, you should always set it false. The default value is false.
         name(str): Name you want to give to the database. 
-        parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. Each controller will spawn its own processes when perform a computation.
+        parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. The ThreadPoolExecutor (self.executor)
         now(float): The time in seconds since the epoch.
+        workers(int): number of workers to be inputted to set up the ThreadPoolExecutor
         log_config(dict): dictionary to configure log saving (logs stored in memory will be cleared).
             'clear_log_period': time in seconds of the period of log saving.
             'log_path': path to save the log files. Filenames will have the format {log_path}_{ctrl_name}.csv
@@ -89,6 +93,8 @@ class controller_stack(object):
         self.log_path = log_config['log_path']
         self.last_clear_time = now
         self.last_refresh_time = now
+        self.workers = workers
+        self.executor = ThreadPoolExecutor(max_workers=workers)
         if parallel:
             self.lock = threading.Lock()
 
@@ -225,9 +231,8 @@ class controller_stack(object):
     def query_control(self, now):
         """
         Trigger computations for controllers if the sample times have arrived.
-        In single thread mod, each call of query_control will trigger a computations for each controller in the system.
-        In multi thread mod, each call of query_control will trigger a computation for one controller within each task.
-            tasks are assigned based on input dependency.
+        A call will be made to run controller queue for each "task" queue
+        In multi thread mod, this will be submitted to self.executor
 
         Input
         -----
@@ -241,7 +246,7 @@ class controller_stack(object):
             self.read_from_db()
         #If the deadline for clearing the log has passed, we open a thread that clears the log
         if now - self.last_clear_time > self.clear_log_period:
-            threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
+            self.executor.submit(self.save_and_clearself.log_path,)
         for task in self.execution_list:
             # CASE1: task is not running and a new step is needed.
             if now >= task['next']:
@@ -251,8 +256,7 @@ class controller_stack(object):
                 # Do control
                 logger.debug('Executing Controller "{!s}"'.format(name))
                 if self.parallel:
-                    threads[name] = (threading.Thread(target=controller_stack.run_controller_queue, args =(self, task, now)))
-                    threads[name].start()
+                    self.executor.submit(controller_stack.run_controller_queue,self, task, now)
                 else:
                     ctrl = self.controller[name]
                     self.run_controller_queue(task, now)
@@ -279,10 +283,10 @@ class controller_stack(object):
                 break
             ctrl['running'] = True
             if self.parallel:
-                p = threading.Thread(target=self.do_control, args=(name, ctrl, now, self.parallel), daemon=True)
-                p.start()
-                p.join(timeout=self.timeout)
-                if p.is_alive():
+                p = self.executor.submit(self.do_control, name, ctrl, now, self.parallel)
+                try:
+                    p.result(self.timeout)
+                except:
                     print('Controller timeout', name)
                     warnings.warn('Controller {} timeout'.format(name), Warning)
                     ctrl['running'] = False
@@ -293,9 +297,7 @@ class controller_stack(object):
 
     def do_control(self, name, ctrl, now, parallel=False):
         """
-        In single thread mod, this function will perform the actual computation of a controller.
-        In multi thread mod, this function will spawn a new process called control_worker_manager. 
-            The new process will handle the computation.
+        This function will perform the actual computation of a controller.
 
         Input
         -----
@@ -338,11 +340,13 @@ class controller_stack(object):
         while time.time() <= end_time:
             t = time.time()
             if self.parallel:
-                threading.Thread(target=controller_stack.query_control, args=(self, time.time()), daemon=True).start()
+                self.executor.submit(controller_stack.query_control, self, time.time())
             else:
                 controller_stack.query_control(self, time.time())
             time.sleep(max(0, timestep - (time.time() - t)))
         time.sleep(self.timeout)
+        self.executor.shutdown()
+        self.executor = ThreadPoolExecutor(max_workers=self.workers)
 
     def update_inputs(self, name, now):
         """
@@ -451,6 +455,7 @@ class controller_stack(object):
     def shutdown(self):
         """ Shut down the database """
         self.database.kill_db()
+        self.executor.shutdown()
         
     def set_input(self, inputs):
         """ Set inputs for controllers
