@@ -142,6 +142,7 @@ class controller_stack(object):
             ctrl['input'][now] = {}
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
+            self.controller[name]['running'] = False
             self.controller_objects = ctrl['fun']
 
     def __initialize_database(self):
@@ -243,10 +244,9 @@ class controller_stack(object):
             threading.Thread(target=self.save_and_clear, args=(self.log_path,)).start()
         for task in self.execution_list:
             # CASE1: task is not running and a new step is needed.
-            if now >= task['next'] and not task['running']:
+            if now >= task['next']:
                 name = task['controller'][0]
-                # Not running, start task
-                task['running'] = True
+                # Start task
                 task['next'] = now + self.controller[task['controller'][0]]['sampletime']
                 # Do control
                 logger.debug('Executing Controller "{!s}"'.format(name))
@@ -275,6 +275,9 @@ class controller_stack(object):
         for name in task['controller']:
             ctrl = self.controller[name]
             logger.debug('Executing Controller "{!s}"'.format(name))
+            if ctrl['running']:
+                break
+            ctrl['running'] = True
             if self.parallel:
                 p = threading.Thread(target=self.do_control, args=(name, ctrl, now, self.parallel), daemon=True)
                 p.start()
@@ -282,9 +285,11 @@ class controller_stack(object):
                 if p.is_alive():
                     print('Controller timeout', name)
                     warnings.warn('Controller {} timeout'.format(name), Warning)
+                    ctrl['running'] = False
+                    break
             else:
                 self.do_control(name, ctrl, now, self.parallel)
-        task['running'] = False
+            ctrl['running'] = False
 
     def do_control(self, name, ctrl, now, parallel=False):
         """
@@ -320,11 +325,23 @@ class controller_stack(object):
             self.read_from_db()
 
     def run_query_control_for(self, seconds, timestep=0.05):
+        """
+        Calls query control every timestep for seconds seconds either parallely or serially
+
+        Input
+        -----
+        seconds(float)
+        timestep(float)
+        """
         t = time.time()
         end_time = t + seconds + timestep
         while time.time() <= end_time:
-            time.sleep(timestep)
-            threading.Thread(target=controller_stack.query_control, args=(self, time.time()), daemon=True).start()
+            t = time.time()
+            if self.parallel:
+                threading.Thread(target=controller_stack.query_control, args=(self, time.time()), daemon=True).start()
+            else:
+                controller_stack.query_control(self, time.time())
+            time.sleep(max(0, timestep - (time.time() - t)))
         time.sleep(self.timeout)
 
     def update_inputs(self, name, now):
