@@ -5,7 +5,7 @@ Class `controller_stack` handles the parallelization, timing/triggering, data lo
 ## Important Functions
 ---
 ## \_\_init__
-Initialize the controller stack object.  
+Initialize the controller stack object. NOTE: IF USING PARALLEL, MAKE SURE TO DRASTICALLY INCREASE THE NUMBER OF WORKERS DRASTICALLY (AT LEAST 100)
 Inputs:
 *  controller(dict): A dictionary of dictionaries. For each item in the first layer dictionary, keys are the name of the controllers and values are dictionaries with two items: `'fun'` specifies the controller's `eFMU` object; `'sampletime'` specifies the sample time of the controller (time interval between two calls to `do_step`). For example:
    ``` python
