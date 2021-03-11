@@ -42,7 +42,7 @@ Inputs:
 * debug(bool): If `True`, some extra print statements will be added for debugging purpose. Unless you are a developers of this package, you should always set it false. The default value is false.
 * name(str): Name you want to give to the database. 
 * parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. Each controller will spawn its own processes when perform a computation.
-* workers (int): Value to feed into the max_workers argument for `self.executor`. THIS IS VERY LOW BY DEFAULT, TRY INCREASING A LOT TO SEE BETTER RESULTS
+* workers (int): Value to feed into the max_workers argument for `self.executor`. THIS IS VERY LOW BY DEFAULT, TRY INCREASING A LOT TO SEE BETTER RESULTS.
 * now(float): The time in seconds since the epoch.
 * debug_db(bool): Default set to false.
 * log_config(dict): A dictionary to configure log saving. The is mainly used by the `save_and_clear` method, which save the logs to csv files and clear the logs in memory.
