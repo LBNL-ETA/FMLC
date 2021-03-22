@@ -123,7 +123,7 @@ class controller_stack(object):
         self.__initialize_controller(now)
         self.__initialize_database()
         self.__initialize_mapping(mapping)
-        self.generate_execution_list()
+        self.generate_execution_list(now)
 
     def __initialize_controller(self, now):
         """
@@ -149,7 +149,7 @@ class controller_stack(object):
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
             self.controller[name]['running'] = False
-            self.controller_objects = ctrl['fun']
+            self.controller_objects[name] = ctrl['fun']
 
     def __initialize_database(self):
         """
@@ -192,7 +192,7 @@ class controller_stack(object):
         self.debug = bool(self.data_db['dev_debug'])
         self.name = str(self.data_db['dev_nodename'])
         
-    def generate_execution_list(self):
+    def generate_execution_list(self, now):
         """
         Generate self.execution_list and execution_map.
 
@@ -200,6 +200,11 @@ class controller_stack(object):
 
         execution_map is a dictionary used to help make self.execution_list with controller names being the keys and the index of the dictionary which
         contains the controller in self.execution_list being the values.
+
+        Input
+        -----
+        now(float): The time in seconds since the epoch.
+
         """
         self.execution_list = []
         execution_map = {}
@@ -221,7 +226,7 @@ class controller_stack(object):
                     # Re-add to back of queue
                     controller_queue.append(name)
             else:
-                self.execution_list.append({'controller':[name], 'next':0 + ctrl['sampletime'], 'running':False})
+                self.execution_list.append({'controller':[name], 'next': now, 'running':False})
                 execution_map[name] = i
                 i += 1
         if self.debug:
@@ -287,7 +292,7 @@ class controller_stack(object):
                 try:
                     p.result(self.timeout)
                 except:
-                    print('Controller timeout', name)
+                    print('Controller timeout: {}'.format(name))
                     warnings.warn('Controller {} timeout'.format(name), Warning)
                     ctrl['running'] = False
                     break
@@ -336,14 +341,14 @@ class controller_stack(object):
         timestep(float)
         """
         t = time.time()
-        end_time = t + seconds + timestep
+        end_time = t + seconds + 2 * timestep
         while time.time() <= end_time:
             t = time.time()
             if self.parallel:
                 self.executor.submit(controller_stack.query_control, self, time.time())
             else:
                 controller_stack.query_control(self, time.time())
-            time.sleep(max(0, timestep - (time.time() - t)))
+            time.sleep(max(0, timestep - (t - time.time())))
         time.sleep(self.timeout)
         self.executor.shutdown()
         self.executor = ThreadPoolExecutor(max_workers=self.workers)
