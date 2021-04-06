@@ -115,3 +115,13 @@ class testcontroller4(eFMU):
         self.output['c'] = self.input['a'] * self.input['b']
         time.sleep(10)
         return 'testcontroller4 did a computation!'
+
+class timeoutcontroller(eFMU):
+    def __init__(self):
+        self.input = {}
+        self.output = {"a" : "default"}
+    
+    def compute(self):
+        time.sleep(2.1)
+        self.output['a'] = "seen due to late computation"
+        return 'Compute ok'

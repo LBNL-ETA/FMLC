@@ -5,7 +5,7 @@ Class `controller_stack` handles the parallelization, timing/triggering, data lo
 ## Important Functions
 ---
 ## \_\_init__
-Initialize the controller stack object.  
+Initialize the controller stack object. NOTE: IF USING PARALLEL, MAKE SURE TO DRASTICALLY INCREASE THE NUMBER OF WORKERS DRASTICALLY (AT LEAST 100)
 Inputs:
 *  controller(dict): A dictionary of dictionaries. For each item in the first layer dictionary, keys are the name of the controllers and values are dictionaries with two items: `'fun'` specifies the controller's `eFMU` object; `'sampletime'` specifies the sample time of the controller (time interval between two calls to `do_step`). For example:
    ``` python
@@ -42,6 +42,7 @@ Inputs:
 * debug(bool): If `True`, some extra print statements will be added for debugging purpose. Unless you are a developers of this package, you should always set it false. The default value is false.
 * name(str): Name you want to give to the database. 
 * parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. Each controller will spawn its own processes when perform a computation.
+* workers (int): Value to feed into the max_workers argument for `self.executor`. THIS IS VERY LOW BY DEFAULT, TRY INCREASING A LOT TO SEE BETTER RESULTS.
 * now(float): The time in seconds since the epoch.
 * debug_db(bool): Default set to false.
 * log_config(dict): A dictionary to configure log saving. The is mainly used by the `save_and_clear` method, which save the logs to csv files and clear the logs in memory.
@@ -81,11 +82,7 @@ Inputs:
 * now(float): The time in seconds since the epoch.
   
 Implementation Logic:
-* It sets up the dictionary representation of each controller, and then registers lists `running_controllers`, `executed_controllers`, and `timeout_controllers` in `BaseManager`, so that they can be syncronized across multiple processes. 
-  * `running_controllers`: List to keep track of all the running controller in the stackedclasses object.
-  * `executed_controllers`: List to keep track of the controllers just finished executing. Controllers will be removed after the next controller in the same task start executing. For the definition of task, see `generate_execution_list`.
-  * `timeout_controllers`: List to keep track of the timed-out controllers.
-* Use multiprocessing to update the storage of controllers. The storage keeps track of the inputs, outputs, and logs of each controller. 
+* Loops through the items in `self.controllers` and initializes them and their inputs
 
 ## \_\_initialize_database
 Initialize the database columns. Columns include input & output variables for each device, timezone, dev_debug, dev_nodename, and dev_parallel.
@@ -110,31 +107,41 @@ Implementation Logic:
 * Iterate through the `inputs` field of each controller and check if they are mapped in `mapping`. Also checks if there are extraneous parameter in `mapping`.
 
 ## generate_execution_list
-Generate self.execution_list. 
+Generate self.execution_list and self.execution_map. 
 Implementation Logic:
-*  Iterate through all controllers to generate `self.execution_list`. `self.execution_list` is a map of dictionaries. The keys are index numbers, and the values are dictionaries which the controllers with input/output dependencies are in the same dictionary(task). 
+*  Iterate through all controllers to generate `self.execution_list`. `self.execution_list` is a list of dicts representing controllers with no dependencies ("parent" controllers) containing the following keys:
+   *`controller` is a list of names for controllers dependent on this one (1 element for now)
+   *`next` contains the next time we run the controller
+   *`running` is a boolean telling us whether the controller is running or not (set to false)
+* `execution_map` is a dict used to help make `self.execution_list`. It maps the names of controllers in `self.execution_list` to their indices. If a controller has a dependent sample time, this map is used to find the parent controller in constant time, and the dependent controller is then added to the parent's `controller` list and also mapped in `execution_map` to the same index as its parent in case it has any dependents.
 
 ## query_control
 Trigger computations for controllers if the sample times have arrived.
-In single thread mod, each call of query_control will trigger a computations for each controller in the system.
-In multi thread mod, each call of query_control will trigger a computation for one controller within each task. Tasks are assigned based on input dependency.  
+In single thread mod, each call of query_control will trigger a computations for each controller by calling `self.run_controller_queue` for each group of dependent controllers serially.
+In multi thread mod, each call of query_control will trigger a computations for each controller by calling `self.run_controller_queue` for each group of dependent controllers parallely.
 Inputs:
 * now(float): The current time in seconds since the epoch as a floating point number.  
 
 Implementation Logic:
 * Save and clear the logs in memory if needed.
-* For each task in `self.execution_list`:
-  * If the task is not running and a new step is needed:
-    * Let the first controller in the task do control. Update the `self.execution_list`.
-  * If `self.execution_list[task]['running']` still shows the task is running.
-    * If a controller in the task got stuck, reset.
-    * If the previous controller has finished executing and there is a succeeding controller, let the succedding controller do control.
-    * If the last controller has finished running, update `self.execution_list[task]['running']` to be `False`
-    * If the quenue in `self.finished_controllers` gets clogged up, reset.
+* For each `task` in `self.execution_list`:
+  * If `self.parallel` open a thread calling `self.run_controller_queue`, else call it serially
+* If `self.parallel`, join all the threads
+
+## run_controller_queue
+Sequentially compute steps for each controller in queue. 
+In a single thread mod, each controller runs to completion on the main thread while in the multithreaded version, we open a thread and handle timeouts. 
+Inputs:
+* task(dict): Represents the controller dependency queue (stored in task["controller"])
+* now(float): The current time in seconds since the epoch as a floating point number.
+
+Implementation Logic:
+* For each controller in task["controller"], we:
+   * Either serially or parallely call `self.do_control` for each input if the controller is not running elsewhere at the time
 
 ## do_control  
-In single thread mod, this function will perform the actual computation of a controller.  
-In multi thread mod, this function will spawn a new process called control_worker_manager. The new process will handle the computation.   
+This function will perform the actual computation of a controller.
+ 
 Inputs:
 * name(str): name of the controller:
 * ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
@@ -193,40 +200,3 @@ Inputs:
   
 Implementation Logic:   
 * Iterate through each input output pairs of the controller and save them to the database
-
-
-## control\_worker\_manager
-Spawn a new process to execute control_work function, which does the actual computation of the controller. Also monitors timeout.   
-Inputs: 
-* name(str): name of the controller.
-* ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
-* now(float): The current time in seconds since the epoch as a floating point number.
-* db_address(str): address of the database
-* inputs(dict): a mapping of the controller's inputs.
-* executed_controller(list): list of names of executed controllers.
-* running_controller(list): list of names of running controllers.
-* timeout_controller(list): list of names of timed out controllers.
-* timeout(int): timeout threshold in seconds. 
-
-Implementation Logic:   
-* start a `control_worker` process, wait for `timeout` second. If the process time out, terminate the process and add it to the `timeout` list.
-
-## control_worker
-Do the actual computation of the controller. Cache the new results into the controller's storage. Also send new records to database.
-
-Inputs: 
-* name(str): name of the controller.
-* ctrl(dict): Corresponds to the dictionary retrieved by `self.controller[name]`. Contains information about the controller. See the function `__initialize_controller` code for detailed information of the contents of the dictionary.
-* now(float): The current time in seconds since the epoch as a floating point number.
-* db_address(str): address of the database
-* inputs(dict): a mapping of the controller's inputs.
-* executed_controller(list): list of names of executed controllers.
-* running_controller(list): list of names of running controllers.
-
-Implementation Logic:    
-* Call the `do_step` function of the controller and save the result to a dictionary `temp`.
-* Call `update_storage` function to save the records into the controller's storage in memory.
-* Call `log_to_db` function to save the records into the database.
-* Add the controller to the `executed_controller` list and remove it from the `running_controller` list.
-## class MyList
-This list is defined for the Python Basemanager to acheive process-safe. It is used by `execution_list`, `finished_controllers`, etc.
