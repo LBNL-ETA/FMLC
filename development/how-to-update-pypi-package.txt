@@ -1,0 +1,42 @@
+Prerequisistes:
+
+Have twine (pip install twine)
+Make an account for PyPi website
+Be added to the project on PyPi
+
+Steps to updating FMLC Package:
+
+1. Change the version number in both the setup.py and FMLC/init.py files (the setup.py file holds much of the information that is published to the PyPi site, you can change and add info there as you please. For more on the setup.py file, check out this link: https://packaging.python.org/tutorials/packaging-projects#configuring-metadata)
+
+2. In the bash shell, run "python setup.py sdist bdist_wheel" (this will create a build and dist folder which contains info on the packages that we will publish)
+
+3. In the bash shell, run "tar tzf dist/FMLC-[VERSION NUMBER HERE].tar.gz" to check the contents of the package. If it looks normal, proceed. Just make sure nothing is egrgiously wrong, the following was my output:
+FMLC-1.0.0/
+FMLC-1.0.0/FMLC/
+FMLC-1.0.0/FMLC/__init__.py
+FMLC-1.0.0/FMLC/baseclasses.py
+FMLC-1.0.0/FMLC/pythonDB/
+FMLC-1.0.0/FMLC/pythonDB/__init__.py
+FMLC-1.0.0/FMLC/pythonDB/pythonDB.py
+FMLC-1.0.0/FMLC/pythonDB/utility.py
+FMLC-1.0.0/FMLC/stackedclasses.py
+FMLC-1.0.0/FMLC/triggering.py
+FMLC-1.0.0/FMLC.egg-info/
+FMLC-1.0.0/FMLC.egg-info/PKG-INFO
+FMLC-1.0.0/FMLC.egg-info/SOURCES.txt
+FMLC-1.0.0/FMLC.egg-info/dependency_links.txt
+FMLC-1.0.0/FMLC.egg-info/requires.txt
+FMLC-1.0.0/FMLC.egg-info/top_level.txt
+FMLC-1.0.0/PKG-INFO
+FMLC-1.0.0/README.md
+FMLC-1.0.0/pyproject.toml
+FMLC-1.0.0/setup.cfg
+FMLC-1.0.0/setup.py
+FMLC-1.0.0/test/
+FMLC-1.0.0/test/test_baseclasses.py
+FMLC-1.0.0/test/test_others.py
+FMLC-1.0.0/test/test_query_control.py
+
+4. In the bash shell, run "twine check dist/*" and make sure you pass the tests
+
+5. Finally, run 'twine upload dist/*', fill out your username and password when prompted, and we are done!
