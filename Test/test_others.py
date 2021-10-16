@@ -56,11 +56,11 @@ class testcontroller4(eFMU):
 def test_input_errors():
     ##CASE1: not all inputs are set.
     controller = {}
-    controller['forecast1'] = {'fun':testcontroller1, 'sampletime':0}
-    controller['mpc1'] = {'fun':testcontroller2, 'sampletime':'forecast1'}
-    controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'fun':testcontroller3, 'sampletime':0}
-    controller['forecast3'] = {'fun':testcontroller1, 'sampletime':0}
+    controller['forecast1'] = {'function':testcontroller1, 'sampletime':0}
+    controller['mpc1'] = {'function':testcontroller2, 'sampletime':'forecast1'}
+    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function':testcontroller3, 'sampletime':0}
+    controller['forecast3'] = {'function':testcontroller1, 'sampletime':0}
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -81,11 +81,11 @@ def test_input_errors():
 
     ##CASE1: not all given inputs are valid inputs (extra inputs)
     controller = {}
-    controller['forecast1'] = {'fun':testcontroller1, 'sampletime':0}
-    controller['mpc1'] = {'fun':testcontroller2, 'sampletime':'forecast1'}
-    controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'fun':testcontroller3, 'sampletime':0}
-    controller['forecast3'] = {'fun':testcontroller1, 'sampletime':0}
+    controller['forecast1'] = {'function':testcontroller1, 'sampletime':0}
+    controller['mpc1'] = {'function':testcontroller2, 'sampletime':'forecast1'}
+    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function':testcontroller3, 'sampletime':0}
+    controller['forecast3'] = {'function':testcontroller1, 'sampletime':0}
 
     mapping = {}
     mapping['forecast1_d'] = 10
@@ -109,7 +109,7 @@ def test_input_errors():
 
 def test_init_once():
     controller = {}
-    controller['forecast1'] = {'fun':testcontroller1, 'sampletime':0}
+    controller['forecast1'] = {'function':testcontroller1, 'sampletime':0}
 
     mapping = {}
     mapping['forecast1_a'] = 10

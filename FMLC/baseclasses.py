@@ -1,9 +1,15 @@
+#! /usr/bin/env python
+
 '''
 This module is part of the FMLC package.
 https://github.com/LBNL-ETA/FMLC
 '''
 
 import abc
+import time
+import traceback
+
+default_output = -1
 
 class eFMU(object):
     '''
@@ -16,7 +22,7 @@ class eFMU(object):
         Wrapper for initialization.
         '''
         self.input = {}     
-        self.output = {}      
+        self.output = {}
     def do_step(self, inputs={}):
         '''
         The function to advance the simulator or controller.
@@ -31,8 +37,19 @@ class eFMU(object):
         ------
         message (str): Message of simulator or controller for computation.
         '''
-        self.set_inputs(inputs)
-        return self.compute()
+        try:
+            st = time.time()
+            self.set_inputs(inputs)
+            message = self.compute()
+            if 'timeout' in self.input:
+                timeout = self.input['timeout'] if self.input['timeout'] else 1e6
+                if st + timeout < time.time():
+                    for k in self.output.keys():
+                        self.output[k] = default_output
+                    message = f'Timed out after {round(time.time()-st, 1)} s.'
+            return message
+        except Exception as e:
+            return f'ERROR: {e}\n\n{traceback.format_exc()}'
     def get_model_variables(self):
         '''
         Function to return all model or controller input variables.

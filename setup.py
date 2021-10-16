@@ -2,10 +2,13 @@ import setuptools
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+    
+with open('requirements.txt') as f:
+    install_requires = f.read().splitlines()
 
 setuptools.setup(
     name="FMLC",
-    version="1.0.0",
+    version="1.1.0",
     author="Gehbauer, Christoph",
     description="A framework/backend for multi-layer and multi-time domain controller.",
     long_description=long_description,
@@ -20,5 +23,5 @@ setuptools.setup(
     ],
     packages=setuptools.find_packages(),
     python_requires=">=3.6",
-    install_requires= ['pandas']
+    install_requires= install_requires
 )

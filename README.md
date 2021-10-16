@@ -3,28 +3,28 @@
 #### Framework for Multi Layer Control in Python
 -------------------------------------------------------------------------
 
-This package is developed to serve as a framework for control applications (building automation, energy management, electric vehicle fleet aggregation, etc.). In particular, this framework is built to handle the parallelization, timing/triggering, data logging, and error handling of multiple controller modules.
+This package is developed to serve as a framework for control applications (microgrid control, building automation, energy management, electric vehicle fleet aggregation, etc.). In particular, this framework is built to handle the parallelization, timing/triggering, data logging, and error handling of multiple controller modules.
 
 ## General
-This package is developed as a framework/backend for multi-layer and multi-time domain controller. One example application are advanced controller based on [Model Predictive Control](https://en.wikipedia.org/wiki/Model_predictive_control) (MPC) where different sub-modules (i.e. weather forecast, energy management, real-time control), with different time constants, have to be coordinated. This framework allows parallelization using the `multiprocessing` module in Python. The FMLC package was tested under Python 2.7 (single and parallel structure) and Python 3.7 (single and parallel structure).
+This package is developed as a framework/backend for multi-layer and multi-time domain controller. One example application are advanced controller based on [Model Predictive Control](https://en.wikipedia.org/wiki/Model_predictive_control) (MPC) where different sub-modules (e.g., weather forecast, energy management, real-time control), with different time constants, have to be coordinated. This framework allows parallelization using the `multiprocessing` module in Python.
 
 *Please note that the FMLC package and especially the examples are still under development. Please open an issue for specific questions*
 
 ## Getting Started
 The following link permits users to clone the source directory containing the [FMLC](https://github.com/LBNL-ETA/FMLC) package.
 
-See requirements.txt for dependencies.
+The package depends on external modules which can be installed from pypi with `pip install -r requirements.txt`.
 
-This [file](docs/baseclass.md) contains a detailed documentation of how to use baseclasses.py to create controller objects.   
-The file stackedclasses.py is a python script to handle the parallelization, timing/triggering, data logging, and error handling of multiple controller modules. Its detailed documentation can be found [here](docs/stackedclasses.md).    
-A complete example can be found [here](https://github.com/LBNL-ETA/FMLC/blob/master/Examples/Test.ipynb).   
+This [file](https://github.com/LBNL-ETA/FMLC/blob/master/documentation/baseclass.md) contains a detailed documentation of how to use `baseclasses.py` to create controller objects.   
+The `stackedclasses.py` is a Python script to handle the parallelization, timing/triggering, data logging, and error handling of multiple controller modules. Its detailed documentation can be found [here](https://github.com/LBNL-ETA/FMLC/blob/master/documentation/stackedclasses.md).    
+A complete example can be found [here](https://github.com/LBNL-ETA/FMLC/blob/master/examples/Test.ipynb).   
 
 ## Example
-To illustrate and test its functionality, each module executes some tests, when called as *main*.
+To illustrate and test its functionality, each module executes some tests, when called as `main`.
 
-The `python triggering.py` command provides an example of the interal triggering of modules, while the `python baseclasses.py` command provides a simple example of a full controller.
+The `python triggering.py` command provides an example of the interal triggering of modules, while the `python baseclasses.py` command provides a simple example of a single controller.
 
-Further, and example Jupyter notebook can be found [here](Examples) where a full controller stack, with different time constants, is illustrated. Please note that in order to work properly on Windows, the notebook must be exported to Python code.
+Further, and example Jupyter notebook can be found [here](https://github.com/LBNL-ETA/FMLC/tree/master/examples) where a full controller stack, with different time constants, is illustrated. Please note that in order to work properly on Windows, the notebook must be exported to Python code.
 
 Another application example can be found [here](https://github.com/LBNL-ETA/DOPER) where FMLC is used to coordiante MPC controls on three differernt time domains:
 * Day-ahead control: invoked once per day; complex model

@@ -1,5 +1,10 @@
 #! /usr/bin/env python
 
+'''
+This module is part of the FMLC package.
+https://github.com/LBNL-ETA/FMLC
+'''
+
 try:
     # For Python 3.0 and later
     from urllib.request import urlopen
@@ -33,10 +38,17 @@ class PythonDB_wrapper(object):
         self.test_db()
 
     def start_db(self):
+        # Determine Python command
+        for pcmd in ['python', 'python3', 'python2']:
+            try:
+                sp.call(pcmd)
+                break
+            except:
+                pass
         i = 0		
         while i < 4:
             self.port = random.randint(10000,60000)
-            sp.Popen('python {}.py {} {} {}'.format(self.root_dir+'/'+self.mode, self.name, str(self.port), self.filepath), shell=True)
+            sp.Popen('{} {}.py {} {} {}'.format(pcmd, self.root_dir+'/'+self.mode, self.name, str(self.port), self.filepath), shell=True)
             sleep(2)
             i += self.test_db()
         if self.test_db() != 999:
@@ -59,7 +71,8 @@ class PythonDB_wrapper(object):
         out, err = pids.communicate()
         for line in out.splitlines():
             line = line.split(b' ')
-            if line[1] == self.name:
+            if line[1].decode() == self.name:
+                sp.call(f'echo "Closing {self.mode} for {self.name}."', shell=True)
                 os.kill(int(line[0]), signal.SIGKILL)
 
 if __name__ == '__main__':

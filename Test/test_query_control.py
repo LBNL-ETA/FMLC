@@ -56,10 +56,11 @@ class testcontroller4(eFMU):
         self.output['c'] = self.input['a'] * self.input['b']
         time.sleep(10)
         return 'testcontroller4 did a computation!'
+        
 def test_sampletime():
     '''This tests if the sample time is working properly'''
     controller = {}
-    controller['forecast1'] = {'fun': testcontroller1, 'sampletime': 3}
+    controller['forecast1'] = {'function': testcontroller1, 'sampletime': 3}
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
@@ -75,11 +76,11 @@ def test_sampletime():
 
 def test_normal():
     controller = {}
-    controller['forecast1'] = {'fun':testcontroller1, 'sampletime':1}
-    controller['mpc1'] = {'fun':testcontroller2, 'sampletime':'forecast1'}
-    controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'fun':testcontroller3, 'sampletime':2}
-    controller['forecast3'] = {'fun':testcontroller1, 'sampletime': 1}
+    controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
+    controller['mpc1'] = {'function':testcontroller2, 'sampletime':'forecast1'}
+    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function':testcontroller3, 'sampletime':2}
+    controller['forecast3'] = {'function':testcontroller1, 'sampletime': 1}
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -150,11 +151,11 @@ def test_stuckController():
     '''This tests if the timeout controllers can be caught'''
     ## CASE1: mpc1 stuck
     controller = {}
-    controller['forecast1'] = {'fun':testcontroller1, 'sampletime':1}
-    controller['mpc1'] = {'fun':testcontroller4, 'sampletime':'forecast1'}
-    controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'fun':testcontroller1, 'sampletime':1}
-    controller['forecast3'] = {'fun':testcontroller1, 'sampletime':1}
+    controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
+    controller['mpc1'] = {'function':testcontroller4, 'sampletime':'forecast1'}
+    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function':testcontroller1, 'sampletime':1}
+    controller['forecast3'] = {'function':testcontroller1, 'sampletime':1}
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -217,11 +218,11 @@ def test_stuckController():
 
     ##CASE2: mpc1 and forcast2 stuck
     controller = {}
-    controller['forecast1'] = {'fun':testcontroller1, 'sampletime':1}
-    controller['mpc1'] = {'fun':testcontroller3, 'sampletime':'forecast1'}
-    controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'fun':testcontroller3, 'sampletime':1}
-    controller['forecast3'] = {'fun':testcontroller1, 'sampletime':1}
+    controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
+    controller['mpc1'] = {'function':testcontroller3, 'sampletime':'forecast1'}
+    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function':testcontroller3, 'sampletime':1}
+    controller['forecast3'] = {'function':testcontroller1, 'sampletime':1}
 
     mapping = {}
     mapping['forecast1_a'] = 10
@@ -282,11 +283,11 @@ def test_stuckController():
 
 def test_serial():
     controller = {}
-    controller['forecast1'] = {'fun':testcontroller1, 'sampletime':1}
-    controller['mpc1'] = {'fun':testcontroller2, 'sampletime':'forecast1'}
-    controller['control1'] = {'fun':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'fun':testcontroller3, 'sampletime':1}
-    controller['forecast3'] = {'fun':testcontroller1, 'sampletime':1}
+    controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
+    controller['mpc1'] = {'function':testcontroller2, 'sampletime':'forecast1'}
+    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function':testcontroller3, 'sampletime':1}
+    controller['forecast3'] = {'function':testcontroller1, 'sampletime':1}
 
     mapping = {}
     mapping['forecast1_a'] = 10

@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 '''
 This module is part of the FMLC package.
 https://github.com/LBNL-ETA/FMLC
@@ -45,7 +47,7 @@ class triggering(object):
         self.trigger[name] = self._get_trigger(self.ts[name], now, mode='next',
                                                integer=self.ts[name]>1)
 
-    def _get_trigger(self, ts, now=time.time(), mode='next', integer=True):
+    def _get_trigger(self, ts, now=time.time(), mode='next', integer=False):
         '''
         Get the current trigger value.
         

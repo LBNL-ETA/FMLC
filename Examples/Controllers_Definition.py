@@ -7,11 +7,10 @@ import datetime as dtm
 import matplotlib.pyplot as plt
 
 # Import FMLC
-#sys.path.append(r'C:\Users\Christoph\Documents\PublicRepos\FMLC')
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath("Test.ipynb"))))
-from FMLC.triggering import triggering
-from FMLC.baseclasses import eFMU
-from FMLC.stackedclasses import controller_stack
+sys.path.append('..')
+from fmlc.triggering import triggering
+from fmlc.baseclasses import eFMU
+from fmlc.stackedclasses import controller_stack
 
 """
 Dummy modules for MicroGridController example.

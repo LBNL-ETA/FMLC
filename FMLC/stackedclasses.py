@@ -1,3 +1,10 @@
+#! /usr/bin/env python
+
+'''
+This module is part of the FMLC package.
+https://github.com/LBNL-ETA/FMLC
+'''
+
 import time
 import warnings
 import os
@@ -5,8 +12,10 @@ import os
 import pandas as pd
 from copy import deepcopy as copy_dict
 import logging
+import datetime as dtm
 
 from .pythonDB.utility import PythonDB_wrapper, write_db, read_db
+from .triggering import triggering
 
 from concurrent.futures import ThreadPoolExecutor
 import threading
@@ -42,7 +51,7 @@ def initialize_class(ctrl, data):
 
 class controller_stack(object):
     def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, \
-        timeout=5, now=time.time(), workers=os.cpu_count()*5, log_config={'clear_log_period': 24*60*60, 'refresh_period':5, 'log_path':'./log'}):
+        timeout=1e3, now=None, workers=os.cpu_count()*5, log_config={'clear_log_period': 24*60*60, 'refresh_period':60, 'log_path':'./log'}):
         """
         Initialize the controller stack object. 
         
@@ -81,6 +90,8 @@ class controller_stack(object):
             'clear_log_period': time in seconds of the period of log saving.
             'log_path': path to save the log files. Filenames will have the format {log_path}_{ctrl_name}.csv
         """
+        if not now:
+            now = time.time()
         self.controller = controller
         self.tz = tz
         self.debug = debug
@@ -137,7 +148,9 @@ class controller_stack(object):
         self.controller_objects = {}
         # Modify self.controllers to contain more information. Register the controllers on the BaseManager.
         for name, ctrl in self.controller.items():
-            ctrl['fun'] = ctrl['fun']()
+            if not 'parameter' in ctrl.keys():
+                ctrl['parameter'] = {}
+            ctrl['fun'] = ctrl['function'](**ctrl['parameter'])
             ctrl['last'] = 0
             ctrl['inputs'] = ctrl['fun'].input.keys()
             ctrl['outputs'] = ctrl['fun'].output.keys()
@@ -216,7 +229,7 @@ class controller_stack(object):
             if type(ctrl['sampletime']) == type(''):
                 #checking for bad mappings. current fix is to time them out
                 if name not in self.controller:
-                    print("Controller " + name + " had a faulty mapping for sample time. It is being removed from the stack")
+                    print(f'Controller {name} had a faulty mapping for sample time. It is being removed from the stack')
                     self.controller.pop(name)
                     pass
                 elif ctrl['sampletime'] not in controller_queue:
@@ -243,25 +256,31 @@ class controller_stack(object):
         -----
         now(float): The current time in seconds since the epoch as a floating point number.
         """
-        threads={}
+        threads = {}
         if now - self.last_refresh_time > self.refresh_period:
             self.read_from_db(refresh_device=True)
             self.last_refresh_time = now
-        else:
-            self.read_from_db()
+        #else:
+        #    self.read_from_db()
         #If the deadline for clearing the log has passed, we open a thread that clears the log
         if now - self.last_clear_time > self.clear_log_period:
-            self.executor.submit(self.save_and_clearself.log_path,)
+            self.read_from_db()
+            self.executor.submit(self.save_and_clear(self.log_path))
+        refreshed_db = False
         for task in self.execution_list:
             # CASE1: task is not running and a new step is needed.
             if now >= task['next']:
+                if not refreshed_db:
+                    self.read_from_db()
+                    refreshed_db = True
                 name = task['controller'][0]
                 # Start task
-                task['next'] = now + self.controller[task['controller'][0]]['sampletime']
+                ts = self.controller[task['controller'][0]]['sampletime']
+                task['next'] = int(now / ts) * ts + ts
                 # Do control
                 logger.debug('Executing Controller "{!s}"'.format(name))
                 if self.parallel:
-                    self.executor.submit(controller_stack.run_controller_queue,self, task, now)
+                    self.executor.submit(controller_stack.run_controller_queue, self, task, now)
                 else:
                     ctrl = self.controller[name]
                     self.run_controller_queue(task, now)
@@ -292,8 +311,9 @@ class controller_stack(object):
                 try:
                     p.result(self.timeout)
                 except:
-                    print('Controller timeout: {}'.format(name))
-                    warnings.warn('Controller {} timeout'.format(name), Warning)
+                    #print(p.cancel())
+                    #print(f'Controller "{name}" timed out.')
+                    warnings.warn(f'Controller "{name}" timed out.', Warning)
                     ctrl['running'] = False
                     break
             else:
@@ -331,7 +351,7 @@ class controller_stack(object):
             log_to_db(name, ctrl, now, self.database.address)
             self.read_from_db()
 
-    def run_query_control_for(self, seconds, timestep=0.05):
+    def run_query_control_for(self, seconds=None, timestep=0.25):
         """
         Calls query control every timestep for seconds seconds either parallely or serially
 
@@ -340,16 +360,25 @@ class controller_stack(object):
         seconds(float)
         timestep(float)
         """
-        t = time.time()
-        end_time = t + seconds + 2 * timestep
-        while time.time() <= end_time:
-            t = time.time()
-            if self.parallel:
-                self.executor.submit(controller_stack.query_control, self, time.time())
-            else:
-                controller_stack.query_control(self, time.time())
-            time.sleep(max(0, timestep - (t - time.time())))
-        time.sleep(self.timeout)
+        if not seconds:
+            print(f'Running controller {self.name} forever.')
+            seconds = 1e99
+        ts = {} 
+        ts['main'] = timestep # seconds
+        trigger_test = triggering(ts)
+
+        now = time.time()
+        end_time = now + seconds + 2 * timestep
+        while now < end_time:
+            now = time.time()
+            if now >= trigger_test.trigger['main']:
+                if self.parallel:
+                    self.executor.submit(controller_stack.query_control, self, now)
+                else:
+                    controller_stack.query_control(self, now)
+                trigger_test.refresh_trigger('main', time.time())
+
+        time.sleep(1)
         self.executor.shutdown()
         self.executor = ThreadPoolExecutor(max_workers=self.workers)
 
@@ -366,7 +395,6 @@ class controller_stack(object):
         inputs = {}
         for c in self.controller[name]['inputs']:
             mapping = self.mapping[name+'_'+c]
-            #print name, c, mapping
             if type(mapping) == type(0) or type(mapping) == type(0.0):
                 inputs[c] = mapping
             elif type(mapping) == type([]):
@@ -412,7 +440,7 @@ class controller_stack(object):
                 init = True
                 for w in which:
                     if w == 'log':
-                        index = ['Logging']
+                        index = ['logging']
                         if hasattr(ctrl['fun'], 'columns'): index = ctrl['fun'].columns
                         temp = pd.DataFrame(ctrl[w], index=index).transpose()
                     else:
@@ -437,7 +465,7 @@ class controller_stack(object):
         self.log_to_csv(path)
         self.clear_logs()
 
-    def log_to_csv(self, new=False, path='log'):
+    def log_to_csv(self, new=False, path='log', add_ts=True):
         """Save the logs to a csv file
 
         Input 
@@ -445,10 +473,16 @@ class controller_stack(object):
         new(bool): whether the csv has already been created.
         path(str): path to save the csv file.
         """
+        # Check folder
+        if not os.path.exists(path):
+            os.makedirs(path)
+        # Log
+        now = dtm.datetime.now().strftime('%Y%m%dT%H%M%S')
+        now = now if add_ts else 0
         dfs = self.log_to_df()
         mode = 'ab' if not new else 'wb'
         for name, log in dfs.items():
-            log.to_csv(path+'_'+name+'.csv')
+            log.to_csv(os.path.join(path, f'{self.name}_{name}_{now}_log.csv'))
 
     def clear_logs(self):
         """ Clear the current log cache """

@@ -1,5 +1,10 @@
 #! /usr/bin/env python
 
+'''
+This module is part of the FMLC package.
+https://github.com/LBNL-ETA/FMLC
+'''
+
 try:
     # For Python 3.0 and later
     from socketserver import TCPServer
@@ -92,26 +97,27 @@ class MyHandler(BaseHTTPRequestHandler):
 			if db['dev_debug']: self.send_error(404)
 			else: pass
 
-#load database
-db = {}
-db['dev_nodename'] = sys.argv[1]
-db_name = db['dev_nodename']+'.csv'
-format = '%Y-%m-%d %H:%M:%S'
-if len(sys.argv) > 3: db_name = sys.argv[3]+'/'+db_name
-if path.isfile(db_name):
-	with open(db_name, 'rb') as f:
-		for row in csv.reader(f):
-			try: db[row[0]] = row[1]
-			except: pass
-db['dev_nodename'] = sys.argv[1]
-db['dev_port'] = sys.argv[2]
-db['dev_debug'] = False
-db['dev_status'] = "starting"
-db['dev_error'] = 'NA'
-db['timezone'] = int(int(mktime(gmtime())-time())/60/60)*-1
-print("Starting Python_db for "+db['dev_nodename']+' on port '+str(db['dev_port'])+'...')
-httpd = TCPServer(("", int(db['dev_port'])), MyHandler)
-db['dev_status'] = "ok"
-print(db['dev_status'])
-db['dev_time'] = datetime.now().strftime(format)
-httpd.serve_forever()
+if __name__ == '__main__':
+    #load database
+    db = {}
+    db['dev_nodename'] = sys.argv[1]
+    db_name = db['dev_nodename']+'.csv'
+    format = '%Y-%m-%d %H:%M:%S'
+    if len(sys.argv) > 3: db_name = sys.argv[3]+'/'+db_name
+    if path.isfile(db_name):
+        with open(db_name, 'rb') as f:
+            for row in csv.reader(f):
+                try: db[row[0]] = row[1]
+                except: pass
+    db['dev_nodename'] = sys.argv[1]
+    db['dev_port'] = sys.argv[2]
+    db['dev_debug'] = False
+    db['dev_status'] = "starting"
+    db['dev_error'] = 'NA'
+    db['timezone'] = int(int(mktime(gmtime())-time())/60/60)*-1
+    print("Starting Python_db for "+db['dev_nodename']+' on port '+str(db['dev_port'])+'...')
+    httpd = TCPServer(("", int(db['dev_port'])), MyHandler)
+    db['dev_status'] = "ok"
+    print(db['dev_status'])
+    db['dev_time'] = datetime.now().strftime(format)
+    httpd.serve_forever()
