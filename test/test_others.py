@@ -1,10 +1,11 @@
 import sys
-from os import path
-sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import time
-from FMLC.triggering import triggering
-from FMLC.baseclasses import eFMU
-from FMLC.stackedclasses import controller_stack
+from os import path
+
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+from fmlc.triggering import triggering
+from fmlc.baseclasses import eFMU
+from fmlc.stackedclasses import controller_stack
 
 class testcontroller1(eFMU):
     def __init__(self):

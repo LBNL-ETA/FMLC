@@ -2,7 +2,7 @@ import sys
 from os import path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-from FMLC.baseclasses import eFMU
+from fmlc.baseclasses import eFMU
 
 
 def test_controller1():

@@ -1,14 +1,15 @@
 import sys
-from os import path
-sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import time
-from FMLC.triggering import triggering
-from FMLC.baseclasses import eFMU
-from FMLC.stackedclasses import controller_stack
-import pandas as pd
-import numpy as np
 import math
 import warnings
+import numpy as np
+import pandas as pd
+from os import path
+
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+from fmlc.triggering import triggering
+from fmlc.baseclasses import eFMU
+from fmlc.stackedclasses import controller_stack
 
 class testcontroller1(eFMU):
     def __init__(self):
@@ -19,7 +20,6 @@ class testcontroller1(eFMU):
         self.init= False
         self.output['c'] = self.input['a'] * self.input['b']
         return 'testcontroller1 did a computation!'
-
 
 class testcontroller2(eFMU):
     def __init__(self):
