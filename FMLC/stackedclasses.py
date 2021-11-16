@@ -137,10 +137,10 @@ class controller_stack(object):
         self.controller_objects = {}
         # Modify self.controllers to contain more information. Register the controllers on the BaseManager.
         for name, ctrl in self.controller.items():
-            ctrl['fun'] = ctrl['fun']()
+            ctrl['function'] = ctrl['function']()
             ctrl['last'] = 0
-            ctrl['inputs'] = ctrl['fun'].input.keys()
-            ctrl['outputs'] = ctrl['fun'].output.keys()
+            ctrl['inputs'] = ctrl['function'].input.keys()
+            ctrl['outputs'] = ctrl['function'].output.keys()
             ctrl['log'] = {}
             ctrl['input'] = {}
             ctrl['output'] = {}
@@ -149,7 +149,7 @@ class controller_stack(object):
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
             self.controller[name]['running'] = False
-            self.controller_objects[name] = ctrl['fun']
+            self.controller_objects[name] = ctrl['function']
 
     def __initialize_database(self):
         """
@@ -318,15 +318,15 @@ class controller_stack(object):
             self.lock.acquire()
             inputs = self.update_inputs(name, now)
             self.lock.release()
-            ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
-            ctrl['output'][now] = copy_dict(ctrl['fun'].output)
+            ctrl['log'][now] = ctrl['function'].do_step(inputs=ctrl['input'][now])
+            ctrl['output'][now] = copy_dict(ctrl['function'].output)
             ctrl['last'] = now
             log_to_db(name, ctrl, now, self.database.address)
             self.read_from_db()
         else:
             inputs = self.update_inputs(name, now)
-            ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
-            ctrl['output'][now] = copy_dict(ctrl['fun'].output)
+            ctrl['log'][now] = ctrl['function'].do_step(inputs=ctrl['input'][now])
+            ctrl['output'][now] = copy_dict(ctrl['function'].output)
             ctrl['last'] = now
             log_to_db(name, ctrl, now, self.database.address)
             self.read_from_db()
@@ -413,7 +413,7 @@ class controller_stack(object):
                 for w in which:
                     if w == 'log':
                         index = ['Logging']
-                        if hasattr(ctrl['fun'], 'columns'): index = ctrl['fun'].columns
+                        if hasattr(ctrl['function'], 'columns'): index = ctrl['function'].columns
                         temp = pd.DataFrame(ctrl[w], index=index).transpose()
                     else:
                         temp = pd.DataFrame(ctrl[w]).transpose()
@@ -484,7 +484,7 @@ class controller_stack(object):
         keys(list): list of input variable names.
         """
         if self.parallel: ctrl = self.controller_objects[name]
-        else: ctrl = self.controller[name]['fun']
+        else: ctrl = self.controller[name]['function']
         return ctrl.get_output(keys=keys)
 
     def get_input(self, name, keys=[]):
@@ -496,5 +496,5 @@ class controller_stack(object):
         keys(list): list of input variable names.
         """
         if self.parallel: ctrl = self.controller_objects[name]
-        else: ctrl = self.controller[name]['fun']
+        else: ctrl = self.controller[name]['function']
         return ctrl.get_input(keys=keys)
