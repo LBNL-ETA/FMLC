@@ -33,7 +33,7 @@ class triggering(object):
         mode = 'prev' if self.init_now else 'next'
         for k in self.ts.keys():
             self.trigger[k] = self._get_trigger(self.ts[k], now, mode=mode,
-                                                integer=self.ts[k]>1)
+                                                integer=(self.ts[k]%1) == 0)
 
     def refresh_trigger(self, name, now=time.time()):
         '''
@@ -45,7 +45,7 @@ class triggering(object):
         now (time.time): Current time to refresh. (Default = time.time())
         '''
         self.trigger[name] = self._get_trigger(self.ts[name], now, mode='next',
-                                               integer=self.ts[name]>1)
+                                               integer=(self.ts[name]%1) == 0)
 
     def _get_trigger(self, ts, now=time.time(), mode='next', integer=False):
         '''
@@ -58,7 +58,7 @@ class triggering(object):
         mode (str): Mode of calculation, either "next" or "prev".
             (Default = "next")
         integer (bool): Round seconds to full integer.
-            Recommended when ts > 10 s. (Defualt = True)
+            Recommended when ts > 10 s. (Defualt = False)
             
         Return
         ------

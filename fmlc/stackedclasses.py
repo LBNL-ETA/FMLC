@@ -51,7 +51,7 @@ def initialize_class(ctrl, data):
 
 class controller_stack(object):
     def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, \
-        timeout=1e3, now=None, workers=os.cpu_count()*5, log_config={'clear_log_period': 24*60*60, 'refresh_period':60, 'log_path':'./log'}):
+        timeout=1e3, now=None, workers=os.cpu_count()*5, timestep=0.25, log_config={'clear_log_period': 24*60*60, 'refresh_period':60, 'log_path':'./log'}):
         """
         Initialize the controller stack object. 
         
@@ -86,6 +86,7 @@ class controller_stack(object):
         parallel(bool): If `True`, the controllers in the controller stack will advance in parallel. The ThreadPoolExecutor (self.executor)
         now(float): The time in seconds since the epoch.
         workers(int): number of workers to be inputted to set up the ThreadPoolExecutor
+        timestep(float): time the stack takes between checking if any controller computations need to be done
         log_config(dict): dictionary to configure log saving (logs stored in memory will be cleared).
             'clear_log_period': time in seconds of the period of log saving.
             'log_path': path to save the log files. Filenames will have the format {log_path}_{ctrl_name}.csv
@@ -106,6 +107,7 @@ class controller_stack(object):
         self.last_refresh_time = now
         self.workers = workers
         self.executor = ThreadPoolExecutor(max_workers=workers)
+        self.stack_timestep = timestep
         if parallel:
             self.lock = threading.Lock()
 
@@ -276,7 +278,10 @@ class controller_stack(object):
                 name = task['controller'][0]
                 # Start task
                 ts = self.controller[task['controller'][0]]['sampletime']
-                task['next'] = int(now / ts) * ts + ts
+                if self.stack_timestep != 0:
+                    task['next'] = int(now / self.stack_timestep) * self.stack_timestep + ts
+                else:
+                    task['next'] = now + ts
                 # Do control
                 logger.debug('Executing Controller "{!s}"'.format(name))
                 if self.parallel:
@@ -307,12 +312,21 @@ class controller_stack(object):
                 break
             ctrl['running'] = True
             if self.parallel:
+                print(f'Running {name} at {now}')
                 p = self.executor.submit(self.do_control, name, ctrl, now, self.parallel)
+                start_rt = time.time()
                 try:
                     p.result(self.timeout)
+                    #print(f'Completed {name} at {now}, {bop - time.time()}')
+                    if time.time() - start_rt > self.timeout:
+                        print(f'Controller "{name}" timed out at {now}.')
+                        warnings.warn(f'Controller "{name}" timed out.', Warning)
+                        ctrl['running'] = False
+                        break
+
                 except:
                     #print(p.cancel())
-                    #print(f'Controller "{name}" timed out.')
+                    print(f'Controller "{name}" timed out at {now}.')
                     warnings.warn(f'Controller "{name}" timed out.', Warning)
                     ctrl['running'] = False
                     break
@@ -350,8 +364,9 @@ class controller_stack(object):
             ctrl['last'] = now
             log_to_db(name, ctrl, now, self.database.address)
             self.read_from_db()
+        return ctrl['output'][now]
 
-    def run_query_control_for(self, seconds=None, timestep=0.25):
+    def run_query_control_for(self, seconds=None, timestep=None):
         """
         Calls query control every timestep for seconds seconds either parallely or serially
 
@@ -360,27 +375,36 @@ class controller_stack(object):
         seconds(float)
         timestep(float)
         """
+        if not timestep:
+            timestep = self.stack_timestep
+        
+        global_timestep_holder = self.stack_timestep
+        self.stack_timestep = timestep
+
         if not seconds:
             print(f'Running controller {self.name} forever.')
             seconds = 1e99
         ts = {} 
-        ts['main'] = timestep # seconds
+        ts['main'] = self.stack_timestep # seconds
         trigger_test = triggering(ts)
 
         now = time.time()
-        end_time = now + seconds + 2 * timestep
+        end_time = now + seconds + self.stack_timestep * 2
         while now < end_time:
             now = time.time()
             if now >= trigger_test.trigger['main']:
+                print("Check at ", now)
                 if self.parallel:
                     self.executor.submit(controller_stack.query_control, self, now)
                 else:
                     controller_stack.query_control(self, now)
-                trigger_test.refresh_trigger('main', time.time())
-
-        time.sleep(1)
+                trigger_test.refresh_trigger('main', now)
+        
+        if self.parallel:
+            time.sleep(self.stack_timestep * 5)
         self.executor.shutdown()
         self.executor = ThreadPoolExecutor(max_workers=self.workers)
+        self.stack_timestep = global_timestep_holder
 
     def update_inputs(self, name, now):
         """
