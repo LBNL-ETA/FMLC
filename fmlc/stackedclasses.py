@@ -8,6 +8,7 @@ https://github.com/LBNL-ETA/FMLC
 import time
 import warnings
 import os
+import traceback
 
 import pandas as pd
 from copy import deepcopy as copy_dict
@@ -40,8 +41,9 @@ def log_to_db(name, ctrl, now, db_address):
         temp[name+'_'+k] = v
     for k, v in ctrl['output'][now].items():
         temp[name+'_'+k] = v
-    if write_db(temp, db_address) == list():
-        print("An error occurred when writing to database.")
+    e = write_db(temp, db_address)
+    if 'ERROR' in e:
+        print(f'An error occurred when writing "{name}" to internal PythonDB database: {e}.')
 
 def initialize_class(ctrl, data):
     """
@@ -51,7 +53,8 @@ def initialize_class(ctrl, data):
 
 class controller_stack(object):
     def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True, \
-        timeout=1e3, now=None, workers=os.cpu_count()*5, log_config={'clear_log_period': 24*60*60, 'refresh_period':60, 'log_path':'./log'}):
+        timeout=1e3, now=None, workers=os.cpu_count()*5,
+        log_config={'clear_log_period': 24*60*60, 'refresh_period':60, 'log_path':'./log', 'log_keys':['input','output','log']}):
         """
         Initialize the controller stack object. 
         
@@ -99,6 +102,7 @@ class controller_stack(object):
         self.parallel = parallel
         self.timeout = timeout
         self.__initialize(mapping, now)
+        self.log_config = log_config
         self.clear_log_period = log_config['clear_log_period']
         self.refresh_period = log_config['refresh_period']
         self.log_path = log_config['log_path']
@@ -307,13 +311,13 @@ class controller_stack(object):
                 break
             ctrl['running'] = True
             if self.parallel:
-                p = self.executor.submit(self.do_control, name, ctrl, now, self.parallel)
+                p = self.executor.submit(self.do_control, name, ctrl, now, self.parallel)                
                 try:
                     p.result(self.timeout)
-                except:
+                except Exception as e:
                     #print(p.cancel())
                     #print(f'Controller "{name}" timed out.')
-                    warnings.warn(f'Controller "{name}" timed out.', Warning)
+                    warnings.warn(f'ERROR: Controller "{name}": {e}\n\n{traceback.format_exc()}', Warning)
                     ctrl['running'] = False
                     break
             else:
@@ -338,18 +342,21 @@ class controller_stack(object):
             self.lock.acquire()
             inputs = self.update_inputs(name, now)
             self.lock.release()
-            ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
-            ctrl['output'][now] = copy_dict(ctrl['fun'].output)
-            ctrl['last'] = now
-            log_to_db(name, ctrl, now, self.database.address)
-            self.read_from_db()
         else:
             inputs = self.update_inputs(name, now)
-            ctrl['log'][now] = ctrl['fun'].do_step(inputs=ctrl['input'][now])
-            ctrl['output'][now] = copy_dict(ctrl['fun'].output)
-            ctrl['last'] = now
-            log_to_db(name, ctrl, now, self.database.address)
-            self.read_from_db()
+        # Add time as input
+        inputs['time'] = now
+        ctrl['input'][now] = inputs
+        ctrl['log'][now] = ctrl['fun'].do_step(inputs=inputs)
+        ctrl['output'][now] = copy_dict(ctrl['fun'].output)
+        ctrl['last'] = now
+        log_to_db(name, ctrl, now, self.database.address)
+        self.read_from_db()
+        
+        # Silence logging
+        for k in ['input', 'output', 'log']:
+            if k not in self.log_config['log_keys']:
+                ctrl[k][now] = {}
 
     def run_query_control_for(self, seconds=None, timestep=0.25):
         """
@@ -394,6 +401,8 @@ class controller_stack(object):
         self.read_from_db()
         inputs = {}
         for c in self.controller[name]['inputs']:
+            if c in ['time']:
+                continue
             mapping = self.mapping[name+'_'+c]
             if type(mapping) == type(0) or type(mapping) == type(0.0):
                 inputs[c] = mapping
@@ -404,7 +413,6 @@ class controller_stack(object):
                     inputs[c] = self.data_db[self.mapping[name+'_'+c]]
                 else:
                     inputs[c] = self.mapping[name+'_'+c]
-        self.controller[name]['input'][now] = inputs
         return inputs
         
     def read_from_db(self, refresh_device=False):

@@ -46,7 +46,7 @@ class eFMU(object):
                 if st + timeout < time.time():
                     for k in self.output.keys():
                         self.output[k] = default_output
-                    message = f'Timed out after {round(time.time()-st, 1)} s.'
+                    message = f'ERROR: Timed out after {round(time.time()-st, 1)} > {timeout} s.'
             return message
         except Exception as e:
             return f'ERROR: {e}\n\n{traceback.format_exc()}'
@@ -80,12 +80,15 @@ class eFMU(object):
             specified inputs.
         '''    
         all_keys = list(self.input.keys())
+        all_keys.append('time')
         for k, v in inputs.items():
             if k in all_keys:
                 self.set_real(k, v)
                 all_keys.remove(k)
             else:
-                raise KeyError('{} not in input list.'.format(k))
+                raise KeyError('"{}" not in input list.'.format(k))
+        if 'time' in all_keys:
+            all_keys.remove('time')
         if len(all_keys) > 0:
             print('WARNING: Not all input specified, but continue step. Missing keys:{}'.format(all_keys))
     @abc.abstractmethod

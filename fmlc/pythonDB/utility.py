@@ -20,12 +20,16 @@ import requests
 import json
 
 def write_db(dict, add_db):
-    try: return requests.put('http://'+add_db+'/write', data=str(json.dumps(dict, sort_keys=True, separators=(',', ': '))))
-    except:	return []
+    try:
+        return requests.put('http://'+add_db+'/write', data=str(json.dumps(dict, sort_keys=True, separators=(',', ': '))))
+    except Exception as e:
+        return f'ERROR: {e}'
 
 def read_db(add_db):
-    try: return json.loads(requests.get('http://'+add_db+'/read', verify=False).text.encode('ascii','ignore'))
-    except:	return {}
+    try:
+        return json.loads(requests.get('http://'+add_db+'/read', verify=False).text.encode('ascii','ignore'))
+    except Exception as e:
+        return f'ERROR: {e}'
     
 class PythonDB_wrapper(object):
     def __init__ (self, name, mode='pythonDB', path=''):
@@ -41,7 +45,7 @@ class PythonDB_wrapper(object):
         # Determine Python command
         for pcmd in ['python', 'python3', 'python2']:
             try:
-                sp.call(pcmd)
+                sp.call([pcmd, '-c', 'exit()'])
                 break
             except:
                 pass

@@ -15,3 +15,17 @@ def check_error(logs, printing=False):
             e = e[1]
             print(f'==>Found error in module {e["module"]} at {e["timestep"]}:\n{e["message"]}<==\n')
     return errors
+    
+def pdlog_to_df(log):
+    res = pd.DataFrame()
+    for r in log.iteritems():
+        try:
+            t = pd.read_json(r[1]).set_index('name')
+            t.index.name = None
+            t = t.stack(0)
+            t.index = ['-'.join(ix) for ix in t.index]
+            for k, v in t.iteritems():
+                res.loc[r[0], k] = v
+        except:
+            pass
+    return res
