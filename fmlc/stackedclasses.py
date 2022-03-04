@@ -400,7 +400,6 @@ class controller_stack(object):
         while now < end_time:
             now = time.time()
             if now >= trigger_test.trigger['main']:
-                print("Check at ", now)
                 if self.parallel:
                     self.executor.submit(controller_stack.query_control, self, now)
                 else:
