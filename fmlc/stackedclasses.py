@@ -328,7 +328,7 @@ class controller_stack(object):
                         ctrl['running'] = False
                         break
 
-                except:
+                except Exception as e:
                     #print(p.cancel())
                     #print(f'Controller "{name}" timed out at {now}.')
                     warnings.warn(f'ERROR: Controller "{name}": {e}\n\n{traceback.format_exc()}', Warning)
