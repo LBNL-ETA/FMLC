@@ -21,10 +21,6 @@ from .triggering import triggering
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
-
-# Setup logger
-logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
 def log_to_db(name, ctrl, now, db_address):
     """
     A helper function to write records into database.
@@ -45,16 +41,22 @@ def log_to_db(name, ctrl, now, db_address):
     if 'ERROR' in e:
         print(f'An error occurred when writing "{name}" to internal PythonDB database: {e}.')
 
-def initialize_class(ctrl, data):
-    """
-    A helper function that initialize the storage of the controller.
-    """
-    ctrl.update_storage(data, init=True)
+#def initialize_class(ctrl, data):
+#    """
+#    A helper function that initialize the storage of the controller.
+#    """
+#    ctrl.update_storage(data, init=True)
 
+default_log_config = {'clear_log_period': 24*60*60,
+                      'dump_log_period': 1*60*60,
+                      'refresh_period': 60,
+                      'log_path': './log',
+                      'log_keys': ['input','output','log']}
+                      
 class controller_stack(object):
     def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1', parallel=True,
         timeout=1e3, now=None, workers=os.cpu_count()*5, timestep=0.25,
-        log_config={'clear_log_period': 24*60*60, 'refresh_period':60, 'log_path':'./log', 'log_keys':['input','output','log']}):
+        log_config=default_log_config, log_level=logging.WARNING, log_add_ts=True):
         """
         Initialize the controller stack object. 
         
@@ -93,27 +95,42 @@ class controller_stack(object):
         log_config(dict): dictionary to configure log saving (logs stored in memory will be cleared).
             'clear_log_period': time in seconds of the period of log saving.
             'log_path': path to save the log files. Filenames will have the format {log_path}_{ctrl_name}.csv
+        log_level (logging): Default level for logging when debug == False. Default is logging.WARNING.
+        log_add_ts (bool): Flag to add timestamp to logname. Default is True.
         """
-        if not now:
-            now = time.time()
+        
+        # Setup
         self.controller = controller
+        self.mapping = mapping
         self.tz = tz
         self.debug = debug
         self.name = name
         self.parallel = parallel
         self.timeout = timeout
-        self.__initialize(mapping, now)
+        if not now:
+            now = time.time()
+        self.workers = workers
+        self.stack_timestep = timestep
         self.log_config = log_config
+        self.dump_log_period = log_config['dump_log_period']
         self.clear_log_period = log_config['clear_log_period']
         self.refresh_period = log_config['refresh_period']
         self.log_path = log_config['log_path']
+        self.log_level = log_level
+        self.log_add_ts = log_add_ts
+        
+        self.last_dump_time = now
         self.last_clear_time = now
         self.last_refresh_time = now
-        self.workers = workers
-        self.executor = ThreadPoolExecutor(max_workers=workers)
-        self.stack_timestep = timestep
+        
         if parallel:
             self.lock = threading.Lock()
+        # Setup self.logger
+        self.logger = logging.getLogger(__name__)
+        self.__check_debug()
+        # Initialize
+        self.__initialize(self.mapping, now)
+        self.executor = ThreadPoolExecutor(max_workers=workers)
 
     def __initialize(self, mapping, now):
         """
@@ -188,7 +205,7 @@ class controller_stack(object):
         db_columns['dev_nodename'] = self.name
         db_columns['dev_parallel'] = self.parallel
         write_db(db_columns, self.database.address)
-        logger.debug('SetupDB\n', read_db(self.database.address))
+        self.logger.debug('SetupDB\n', read_db(self.database.address))
 
     def __initialize_mapping(self, mapping):
         """
@@ -202,6 +219,12 @@ class controller_stack(object):
         if len(m) != 0:
             raise KeyError('{} not a control parameter.'.format(m))
         self.mapping = mapping
+        
+    def __check_debug(self):
+        if self.debug:
+            self.logger.setLevel(logging.DEBUG)
+        else:
+            self.logger.setLevel(self.log_level)
             
     def refresh_device_from_db(self):
         """
@@ -210,6 +233,8 @@ class controller_stack(object):
         self.tz = int(self.data_db['timezone'])
         self.debug = bool(self.data_db['dev_debug'])
         self.name = str(self.data_db['dev_nodename'])
+        # check if debugging
+        self.__check_debug()
         
     def generate_execution_list(self, now):
         """
@@ -248,9 +273,8 @@ class controller_stack(object):
                 self.execution_list.append({'controller':[name], 'next': now, 'running':False})
                 execution_map[name] = i
                 i += 1
-        if self.debug:
-            logger.debug('Execution list: {!s}'.format(self.execution_list))
-            logger.debug('Execution map: {!s}'.format(execution_map))
+        self.logger.debug('Execution list: {!s}'.format(self.execution_list))
+        self.logger.debug('Execution map: {!s}'.format(execution_map))
 
     def query_control(self, now):
         """
@@ -263,18 +287,23 @@ class controller_stack(object):
         now(float): The current time in seconds since the epoch as a floating point number.
         """
         threads = {}
+        refreshed_db = False
         if now - self.last_refresh_time > self.refresh_period:
             self.read_from_db(refresh_device=True)
             self.last_refresh_time = now
+            refreshed_db = True
         #else:
         #    self.read_from_db()
-        #If the deadline for clearing the log has passed, we open a thread that clears the log
+        
+        # Log
+        if now - self.last_dump_time > self.dump_log_period:
+            self.executor.submit(self.log_to_csv(path=self.log_path, add_ts=self.log_add_ts))
+            self.last_dump_time = now
         if now - self.last_clear_time > self.clear_log_period:
-            self.read_from_db()
-            self.executor.submit(self.save_and_clear(self.log_path))
-        refreshed_db = False
+            self.executor.submit(self.save_and_clear(path=self.log_path, add_ts=self.log_add_ts))
+            self.last_clear_time = now
+        
         for task in self.execution_list:
-            # CASE1: task is not running and a new step is needed.
             if now >= task['next']:
                 if not refreshed_db:
                     self.read_from_db()
@@ -287,7 +316,7 @@ class controller_stack(object):
                 else:
                     task['next'] = now + ts
                 # Do control
-                logger.debug('Executing Controller "{!s}"'.format(name))
+                self.logger.debug('Executing Controller "{!s}"'.format(name))
                 if self.parallel:
                     self.executor.submit(controller_stack.run_controller_queue, self, task, now)
                 else:
@@ -311,7 +340,7 @@ class controller_stack(object):
         """
         for name in task['controller']:
             ctrl = self.controller[name]
-            logger.debug('Executing Controller "{!s}"'.format(name))
+            self.logger.debug('Executing Controller "{!s}"'.format(name))
             if ctrl['running']:
                 break
             ctrl['running'] = True
@@ -351,7 +380,7 @@ class controller_stack(object):
         """
     
         # Query controller
-        logger.debug('QueryCTRL {} at {} ({})'.format(name, pd.to_datetime(now, unit='s')+pd.DateOffset(hours=self.tz), now))
+        self.logger.debug('QueryCTRL {} at {} ({})'.format(name, pd.to_datetime(now, unit='s')+pd.DateOffset(hours=self.tz), now))
         if parallel:
             self.lock.acquire()
             inputs = self.update_inputs(name, now)
@@ -451,9 +480,7 @@ class controller_stack(object):
                 self.lock.release()
             else:
                 self.refresh_device_from_db()
-            
-            
-        
+
     def log_to_df(self, which=['input','output','log']):
         """
         Return a dataframe that contains the logs.
@@ -485,7 +512,7 @@ class controller_stack(object):
                         dfs[name] = pd.concat([dfs[name], temp], axis=1)
         return dfs
     
-    def save_and_clear(self, path='log'):
+    def save_and_clear(self, path='log', add_ts=True):
         """Save the logs to csv files and clear 
         the current log cache in memory.
         
@@ -493,7 +520,7 @@ class controller_stack(object):
         ---
         path(str): path to save the csv file.
         """
-        self.log_to_csv(path)
+        self.log_to_csv(path=path, add_ts=add_ts)
         self.clear_logs()
 
     def log_to_csv(self, new=False, path='log', add_ts=True):
@@ -520,10 +547,12 @@ class controller_stack(object):
         for name, ctrl in self.controller.items():
             for t in ['output','input','log']:
                 ctrl[t] = {}
-            initialize_class(self.controller_objects[name], ctrl)
+            #initialize_class(self.controller_objects[name], ctrl)
             
-    def shutdown(self):
+    def shutdown(self, dump_log=False):
         """ Shut down the database """
+        if dump_log:
+            self.log_to_csv(path=self.log_path, add_ts=self.log_add_ts)
         self.database.kill_db()
         self.executor.shutdown()
         

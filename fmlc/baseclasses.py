@@ -144,24 +144,24 @@ class eFMU(object):
                 else:
                     raise KeyError('{} not in input list.'.format(k))
             return out
-    def update_storage(self, data, init=False):
-        '''
-        Function to update the internal storage of inputs and outputs.
+#     def update_storage(self, data, init=False):
+#         '''
+#         Function to update the internal storage of inputs and outputs.
         
-        Input
-        -----
-        data (dict): The data to be stored in form of {name: value}.
-        init (bool): Flag to indicate intial setup of the storage.
-            (Default = False)
-        '''
-        if init:
-            self.storage = data
-        else:
-            for k in data.keys():
-                if type(data[k]) == type({}):
-                    self.storage[k].update(data[k])
-                elif type(data[k]) in [type(0), type(0.0), type('')]:
-                    self.storage[k] = data[k]
+#         Input
+#         -----
+#         data (dict): The data to be stored in form of {name: value}.
+#         init (bool): Flag to indicate intial setup of the storage.
+#             (Default = False)
+#         '''
+#         if init:
+#             self.storage = data
+#         else:
+#             for k in data.keys():
+#                 if type(data[k]) == type({}):
+#                     self.storage[k].update(data[k])
+#                 elif type(data[k]) in [type(0), type(0.0), type('')]:
+#                     self.storage[k] = data[k]
     def get_var(self, name):
         '''
         Function to get a specific variable in the model.
