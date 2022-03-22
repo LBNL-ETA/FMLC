@@ -8,7 +8,7 @@ with open('requirements.txt') as f:
 
 setuptools.setup(
     name="FMLC",
-    version="1.2.0",
+    version="1.2.1",
     author="Gehbauer, Christoph",
     description="A framework/backend for multi-layer and multi-time domain controller.",
     long_description=long_description,
