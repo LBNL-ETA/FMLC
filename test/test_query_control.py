@@ -102,11 +102,11 @@ def test_normal():
     df4 = pd.DataFrame(controller.log_to_df()['mpc1'])
     df5 = pd.DataFrame(controller.log_to_df()['control1'])
 
-    print(df1)
-    print(df2)
-    print(df3)
-    print(df4)
-    print(df5)
+    #print(df1)
+    #print(df2)
+    #print(df3)
+    #print(df4)
+    #print(df5)
     
     # Check number of records
     assert df1.shape[0] == 7
@@ -180,7 +180,9 @@ def test_stuckController():
         warnings.simplefilter("always")
         controller.run_query_control_for(2)
         #assert len(w) == 3
-        assert "timed out" in str(w[-1].message)
+        for m in w:
+            assert "TimeoutError" in str(m.message)
+            
     df1 = pd.DataFrame(controller.log_to_df()['forecast1'])
     df2 = pd.DataFrame(controller.log_to_df()['forecast2'])
     df3 = pd.DataFrame(controller.log_to_df()['forecast3'])
@@ -248,9 +250,7 @@ def test_stuckController():
         controller.run_query_control_for(5)
         #assert len(w) == 12
         for m in w:
-            assert "timed out" in str(m.message)
-    
-
+            assert "TimeoutError" in str(m.message)
 
     df1 = pd.DataFrame(controller.log_to_df()['forecast1'])
     df2 = pd.DataFrame(controller.log_to_df()['forecast2'])
@@ -259,11 +259,11 @@ def test_stuckController():
     df5 = pd.DataFrame(controller.log_to_df()['control1'])
 
     # Check number of records
-    print(df1)
+    #print(df1)
     assert df1.shape[0] == 7 
     #assert df2.shape[0] == 1
     assert df3.shape[0] == 7
-    print(df3)
+    #print(df3)
     #assert df4.shape[0] == 1
     assert df5.shape[0] == 1
     #assert len(df2.columns) == 1

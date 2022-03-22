@@ -1,4 +1,4 @@
-__version__ = "1.2.1"
+__version__ = "1.2.0"
 
 from .baseclasses import eFMU
 from .stackedclasses import controller_stack
