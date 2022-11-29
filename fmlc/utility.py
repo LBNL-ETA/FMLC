@@ -18,13 +18,13 @@ def check_error(logs, printing=False):
     
 def pdlog_to_df(log):
     res = pd.DataFrame()
-    for r in log.iteritems():
+    for r in log.items():
         try:
             t = pd.read_json(r[1]).set_index('name')
             t.index.name = None
             t = t.stack(0)
             t.index = ['-'.join(ix) for ix in t.index]
-            for k, v in t.iteritems():
+            for k, v in t.items():
                 res.loc[r[0], k] = v
         except:
             pass
