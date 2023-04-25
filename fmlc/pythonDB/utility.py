@@ -19,6 +19,9 @@ import random
 import requests
 import json
 
+SLEEP_TIME = 2   # seconds
+MAX_ATTEMPTS = 4 # max attempts to start database
+
 def write_db(dict, add_db):
     try:
         return requests.put('http://'+add_db+'/write', data=str(json.dumps(dict, sort_keys=True, separators=(',', ': '))))
@@ -39,7 +42,6 @@ class PythonDB_wrapper(object):
         self.filepath = path
         self.error = ''
         self.start_db()
-        self.test_db()
 
     def start_db(self):
         # Determine Python command
@@ -50,11 +52,12 @@ class PythonDB_wrapper(object):
             except:
                 pass
         i = 0		
-        while i < 4:
-            self.port = random.randint(10000,60000)
+        while i < MAX_ATTEMPTS:
+            self.port = random.randint(10000, 60000)
             sp.Popen('{} {}.py {} {} {}'.format(pcmd, self.root_dir+'/'+self.mode, self.name, str(self.port), self.filepath), shell=True)
-            sleep(2)
+            sleep(SLEEP_TIME)
             i += self.test_db()
+        sleep(SLEEP_TIME/2)
         if self.test_db() != 999:
             self.port = 0
             self.error += 'Cannot find open port for '+self.name
@@ -62,7 +65,8 @@ class PythonDB_wrapper(object):
     def test_db(self):
         try:
             response = urlopen('http://127.0.0.1:'+str(self.port)+'/status', timeout=1).read()
-            if 'ok' in str(response):
+            response = json.loads(response)
+            if response['dev_nodename'] == self.name:
                 return 999
             else:
                 return 1

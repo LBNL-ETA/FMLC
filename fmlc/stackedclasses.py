@@ -206,6 +206,8 @@ class controller_stack(object):
         db_columns['dev_parallel'] = self.parallel
         write_db(db_columns, self.database.address)
         self.logger.debug('SetupDB\n', read_db(self.database.address))
+        if self.database.error != '':
+            self.logger.error(f'SetupDB: {self.database.error}')
 
     def __initialize_mapping(self, mapping):
         """
