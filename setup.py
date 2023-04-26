@@ -30,6 +30,8 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     packages=['fmlc'],
+    package_data={'': ['*.txt.', '*.md'], 
+                  'fmlc': ['pythonDB/*.py']}
     python_requires=">=3.6",
     install_requires= install_requires
 )
