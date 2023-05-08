@@ -21,6 +21,11 @@ from .triggering import triggering
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
+# Setup logging
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s (%(name)s:%(funcName)s)',
+    datefmt='%Y-%m-%d %H:%M:%S')
+
 def log_to_db(name, ctrl, now, db_address):
     """
     A helper function to write records into database.
