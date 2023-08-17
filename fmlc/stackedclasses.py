@@ -44,7 +44,7 @@ def log_to_db(name, ctrl, now, db_address):
         temp[name+'_'+k] = v
     e = write_db(temp, db_address)
     if 'ERROR' in e:
-        print(f'An error occurred when writing "{name}" to internal PythonDB database: {e}.')
+        print(f'An error occurred when writing "{name}" to internal PythonDB database: {e}.\n\n{traceback.format_exc()}')
 
 #def initialize_class(ctrl, data):
 #    """
