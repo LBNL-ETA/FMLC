@@ -18,6 +18,7 @@ import subprocess as sp
 import random
 import requests
 import json
+import traceback
 
 SLEEP_TIME = 2   # seconds
 MAX_ATTEMPTS = 4 # max attempts to start database
@@ -26,7 +27,7 @@ def write_db(dict, add_db):
     try:
         return requests.put('http://'+add_db+'/write', data=str(json.dumps(dict, sort_keys=True, separators=(',', ': '))))
     except Exception as e:
-        return f'ERROR: {e}'
+        return f'ERROR: {e}.\n\n{traceback.format_exc()}'
 
 def read_db(add_db):
     try:
