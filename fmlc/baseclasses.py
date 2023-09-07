@@ -90,6 +90,8 @@ class eFMU(object):
                 raise KeyError('"{}" not in input list.'.format(k))
         if 'time' in all_keys:
             all_keys.remove('time')
+        if 'uid' in all_keys:
+            all_keys.remove('uid')
         if len(all_keys) > 0:
             print('WARNING: Not all input specified, but continue step. Missing keys:{}'.format(all_keys))
     @abc.abstractmethod
