@@ -461,7 +461,7 @@ class controller_stack(object):
         self.read_from_db()
         inputs = {}
         for c in self.controller[name]['inputs']:
-            if c in ['time']:
+            if c in ['time', 'uid']:
                 continue
             mapping = self.mapping[name+'_'+c]
             if type(mapping) == type(0) or type(mapping) == type(0.0):
