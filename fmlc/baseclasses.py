@@ -81,6 +81,7 @@ class eFMU(object):
         '''    
         all_keys = list(self.input.keys())
         all_keys.append('time')
+        all_keys.append('uid')
         for k, v in inputs.items():
             if k in all_keys:
                 self.set_real(k, v)
