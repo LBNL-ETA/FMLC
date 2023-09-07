@@ -397,6 +397,7 @@ class controller_stack(object):
             
         # Add time as input
         inputs['time'] = now
+        inputs['uid'] = name
         ctrl['input'][now] = inputs
         ctrl['log'][now] = ctrl['fun'].do_step(inputs=inputs)
         ctrl['output'][now] = copy_dict(ctrl['fun'].output)
