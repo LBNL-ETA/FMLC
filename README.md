@@ -1,5 +1,6 @@
 # FMLC
-![Actions Status](https://github.com/LBNL-ETA/FMLC/workflows/Python%20application/badge.svg)
+[![Actions Status](https://github.com/LBNL-ETA/FMLC/actions/workflows/python-app.yml/badge.svg)](https://github.com/LBNL-ETA/FMLC/actions/workflows/python-app.yml)
+
 #### Framework for Multi Layer Control in Python
 -------------------------------------------------------------------------
 
