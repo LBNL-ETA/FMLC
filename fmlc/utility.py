@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 
 def check_error(logs, printing=False):
