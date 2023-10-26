@@ -29,3 +29,28 @@ def pdlog_to_df(log):
         except:
             pass
     return res
+
+def read_csv_logs(name='MGC', path='', only_latest=True):
+    '''
+    Utility to load logs from csv.
+    
+    Input
+    -----
+    name (str): Name of the controller.
+    path (str): Path to the top-level folder.
+    only_latest (bool): Load all files or only the latest ones.
+    
+    Returns
+    -------
+    logs (dict): Dict of logs.
+    '''
+
+    logs = {}
+    for f in sorted([f for f in os.listdir(path) if f.split('_')[0]==name and f.endswith('.csv')]):
+        l = pd.read_csv(os.path.join(path, f), index_col=0)
+        l.index = pd.to_datetime(l.index)
+        if not only_latest and f.split('_')[1] in logs.keys():
+            logs[f.split('_')[1]] = pd.concat([logs[f.split('_')[1]], l], axis=1)
+        else:
+            logs[f.split('_')[1]] = l
+    return logs
