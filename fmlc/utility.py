@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pandas as pd
 
 def check_error(logs, printing=False):
@@ -47,11 +48,18 @@ def read_csv_logs(name='MGC', path='', only_latest=True):
     '''
 
     logs = {}
-    for f in sorted([f for f in os.listdir(path) if f.split('_')[0]==name and f.endswith('.csv')]):
-        l = pd.read_csv(os.path.join(path, f), index_col=0)
-        l.index = pd.to_datetime(l.index)
-        if not only_latest and f.split('_')[1] in logs.keys():
-            logs[f.split('_')[1]] = pd.concat([logs[f.split('_')[1]], l], axis=1)
+    files = [f for f in os.listdir(path) if f.split('_')[0]==name and f.endswith('.csv')]
+    modules = np.unique([f.split('_')[1] for f in files])
+    for module in modules:
+        mf = sorted([f for f in files if f.startswith(f'{name}_{module}')])
+        if only_latest:
+            f = mf[-1] # latest
+            l = pd.read_csv(os.path.join(path, f), index_col=0)
+            l.index = pd.to_datetime(l.index)
+            logs[module] = l
         else:
-            logs[f.split('_')[1]] = l
+            for f in mf:
+                l = pd.read_csv(os.path.join(path, f), index_col=0)
+                l.index = pd.to_datetime(l.index)
+                logs[module] = pd.concat([logs[module], l], axis=1)
     return logs
