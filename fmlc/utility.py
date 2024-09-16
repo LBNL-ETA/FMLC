@@ -1,4 +1,5 @@
 import os
+import io
 import numpy as np
 import pandas as pd
 
@@ -22,7 +23,7 @@ def pdlog_to_df(log):
     res = pd.DataFrame()
     for r in log.items():
         try:
-            t = pd.read_json(r[1]).set_index('name')
+            t = pd.read_json(io.StringIO(r[1])).set_index('name')
             t.index.name = None
             t = t.stack(0)
             t.index = ['-'.join(ix) for ix in t.index]
