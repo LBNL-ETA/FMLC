@@ -52,7 +52,7 @@ def read_csv_logs(name='MGC', path='', only_latest=True):
     files = [f for f in os.listdir(path) if f.split('_')[0]==name and f.endswith('.csv')]
     modules = np.unique([f.split('_')[1] for f in files])
     for module in modules:
-        mf = sorted([f for f in files if f.startswith(f'{name}_{module}')])
+        mf = sorted([f for f in files if f.startswith(f'{name}_{module}_')])
         if only_latest:
             f = mf[-1] # latest
             l = pd.read_csv(os.path.join(path, f), index_col=0)
