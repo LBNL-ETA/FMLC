@@ -116,21 +116,21 @@ def test_normal():
     assert df5.shape[0] == 7
 
     # Check contents of records
-    assert pd.isna(df1['a'][0])
-    assert pd.isna(df1['b'][0])
-    assert pd.isna(df1['c'][0])
-    assert pd.isna(df2['a'][0])
-    assert pd.isna(df2['b'][0])
-    assert pd.isna(df2['c'][0])
-    assert pd.isna(df3['a'][0])
-    assert pd.isna(df3['b'][0])
-    assert pd.isna(df3['c'][0])
-    assert pd.isna(df4['a'][0])
-    assert pd.isna(df4['b'][0])
-    assert pd.isna(df4['c'][0])
-    assert pd.isna(df5['a'][0])
-    assert pd.isna(df5['b'][0])
-    assert pd.isna(df5['c'][0])
+    assert pd.isna(df1['a'].iloc[0])
+    assert pd.isna(df1['b'].iloc[0])
+    assert pd.isna(df1['c'].iloc[0])
+    assert pd.isna(df2['a'].iloc[0])
+    assert pd.isna(df2['b'].iloc[0])
+    assert pd.isna(df2['c'].iloc[0])
+    assert pd.isna(df3['a'].iloc[0])
+    assert pd.isna(df3['b'].iloc[0])
+    assert pd.isna(df3['c'].iloc[0])
+    assert pd.isna(df4['a'].iloc[0])
+    assert pd.isna(df4['b'].iloc[0])
+    assert pd.isna(df4['c'].iloc[0])
+    assert pd.isna(df5['a'].iloc[0])
+    assert pd.isna(df5['b'].iloc[0])
+    assert pd.isna(df5['c'].iloc[0])
     assert list(df1['a'])[1:] == [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
     assert list(df1['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
     assert list(df1['c'])[1:] == [40.0, 40.0, 40.0, 40.0, 40.0, 40.0]
@@ -198,15 +198,15 @@ def test_stuckController():
     #assert len(df4.columns) == 1
     assert len(df5.columns) == 1
     # Check contents of records
-    assert pd.isna(df1['a'][0])
-    assert pd.isna(df1['b'][0])
-    assert pd.isna(df1['c'][0])
-    assert pd.isna(df2['a'][0])
-    assert pd.isna(df2['b'][0])
-    assert pd.isna(df2['c'][0])
-    assert pd.isna(df3['a'][0])
-    assert pd.isna(df3['b'][0])
-    assert pd.isna(df3['c'][0])
+    assert pd.isna(df1['a'].iloc[0])
+    assert pd.isna(df1['b'].iloc[0])
+    assert pd.isna(df1['c'].iloc[0])
+    assert pd.isna(df2['a'].iloc[0])
+    assert pd.isna(df2['b'].iloc[0])
+    assert pd.isna(df2['c'].iloc[0])
+    assert pd.isna(df3['a'].iloc[0])
+    assert pd.isna(df3['b'].iloc[0])
+    assert pd.isna(df3['c'].iloc[0])
     assert list(df1['a'])[1:] == [10.0, 10.0, 10.0]
     assert list(df1['b'])[1:] == [4.0, 4.0, 4.0]
     assert list(df1['c'])[1:] == [40.0, 40.0, 40.0]
@@ -270,12 +270,12 @@ def test_stuckController():
     #assert len(df4.columns) == 1
     assert len(df5.columns) == 1
     # Check contents of records
-    assert pd.isna(df1['a'][0])
-    assert pd.isna(df1['b'][0])
-    assert pd.isna(df1['c'][0])
-    assert pd.isna(df3['a'][0])
-    assert pd.isna(df3['b'][0])
-    assert pd.isna(df3['c'][0])
+    assert pd.isna(df1['a'].iloc[0])
+    assert pd.isna(df1['b'].iloc[0])
+    assert pd.isna(df1['c'].iloc[0])
+    assert pd.isna(df3['a'].iloc[0])
+    assert pd.isna(df3['b'].iloc[0])
+    assert pd.isna(df3['c'].iloc[0])
     assert list(df1['a'])[1:] == [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
     assert list(df1['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
     assert list(df1['c'])[1:] == [40.0, 40.0, 40.0, 40.0, 40.0, 40.0]
@@ -327,21 +327,21 @@ def test_serial():
     assert df5.shape[0] == 7
 
     # Check contents of records
-    assert pd.isna(df1['a'][0])
-    assert pd.isna(df1['b'][0])
-    assert pd.isna(df1['c'][0])
-    assert pd.isna(df2['a'][0])
-    assert pd.isna(df2['b'][0])
-    assert pd.isna(df2['c'][0])
-    assert pd.isna(df3['a'][0])
-    assert pd.isna(df3['b'][0])
-    assert pd.isna(df3['c'][0])
-    assert pd.isna(df4['a'][0])
-    assert pd.isna(df4['b'][0])
-    assert pd.isna(df4['c'][0])
-    assert pd.isna(df5['a'][0])
-    assert pd.isna(df5['b'][0])
-    assert pd.isna(df5['c'][0])
+    assert pd.isna(df1['a'].iloc[0])
+    assert pd.isna(df1['b'].iloc[0])
+    assert pd.isna(df1['c'].iloc[0])
+    assert pd.isna(df2['a'].iloc[0])
+    assert pd.isna(df2['b'].iloc[0])
+    assert pd.isna(df2['c'].iloc[0])
+    assert pd.isna(df3['a'].iloc[0])
+    assert pd.isna(df3['b'].iloc[0])
+    assert pd.isna(df3['c'].iloc[0])
+    assert pd.isna(df4['a'].iloc[0])
+    assert pd.isna(df4['b'].iloc[0])
+    assert pd.isna(df4['c'].iloc[0])
+    assert pd.isna(df5['a'].iloc[0])
+    assert pd.isna(df5['b'].iloc[0])
+    assert pd.isna(df5['c'].iloc[0])
     assert list(df1['a'])[1:] == [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
     assert list(df1['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
     assert list(df1['c'])[1:] == [40.0, 40.0, 40.0, 40.0, 40.0, 40.0]
