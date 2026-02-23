@@ -1,29 +1,33 @@
-#! /usr/bin/env python
+# Framework for Multi Layer Control in Python (FMLC) Copyright (c) 2019,
+# The Regents of the University of California, through Lawrence Berkeley
+# National Laboratory (subject to receipt of any required approvals
+# from the U.S. Dept. of Energy). All rights reserved.
 
-'''
-This module is part of the FMLC package.
-https://github.com/LBNL-ETA/FMLC
-'''
+"""
+Framework for Multi Layer Control
+Baseclass module.
+"""
 
 import abc
 import time
 import traceback
 
-default_output = -1
+default_output = -1  # pylint: disable=invalid-name
 
-class eFMU(object):
+class eFMU:  # pylint: disable=invalid-name
     '''
     Class to handle data exchange of models and controllers.
     '''
     __metaclass__  = abc.ABCMeta
-    
+
     def __init__(self):
         '''
         Wrapper for initialization.
         '''
-        self.input = {}     
+        self.input = {}
         self.output = {}
-    def do_step(self, inputs={}):
+
+    def do_step(self, inputs=None):
         '''
         The function to advance the simulator or controller.
         
@@ -37,19 +41,22 @@ class eFMU(object):
         ------
         message (str): Message of simulator or controller for computation.
         '''
-        try:
+        if inputs is None:
+            inputs = {}
+        try:  # pylint: disable=broad-exception-caught
             st = time.time()
             self.set_inputs(inputs)
             message = self.compute()
             if 'timeout' in self.input:
                 timeout = self.input['timeout'] if self.input['timeout'] else 1e6
                 if st + timeout < time.time():
-                    for k in self.output.keys():
+                    for k in self.output:
                         self.output[k] = default_output
                     message = f'ERROR: Timed out after {round(time.time()-st, 1)} > {timeout} s.'
             return message
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             return f'ERROR: {e}\n\n{traceback.format_exc()}'
+
     def get_model_variables(self):
         '''
         Function to return all model or controller input variables.
@@ -59,6 +66,7 @@ class eFMU(object):
         variables (list): List of input variables.
         '''
         return self.input.keys()
+
     def set_real(self, name, value):
         '''
         Function to set a real value in the model.
@@ -69,16 +77,17 @@ class eFMU(object):
         value (float): The value of the variable to be set.
         '''
         self.input[name] = value
+
     def set_inputs(self, inputs):
         '''
         Function to set the inputs of the model.
         
         Input
         -----
-        inputs (dict): The inputs for the simulator or controller in form of 
+        inputs (dict): The inputs for the simulator or controller in form of
             {name: value}. Note that there will be a warning for not
             specified inputs.
-        '''    
+        '''
         all_keys = list(self.input.keys())
         all_keys.append('time')
         all_keys.append('uid')
@@ -87,19 +96,21 @@ class eFMU(object):
                 self.set_real(k, v)
                 all_keys.remove(k)
             else:
-                raise KeyError('"{}" not in input list.'.format(k))
+                raise KeyError(f'"{k}" not in input list.')
         if 'time' in all_keys:
             all_keys.remove('time')
         if 'uid' in all_keys:
             all_keys.remove('uid')
         if len(all_keys) > 0:
-            print('WARNING: Not all input specified, but continue step. Missing keys:{}'.format(all_keys))
+            print(f'WARNING: Not all input specified, but continue step. Missing keys:{all_keys}')
+
     @abc.abstractmethod
     def compute(self):
         '''
         Method to compute the output
         '''
-    def get_output(self, keys=[]):
+
+    def get_output(self, keys=None):
         '''
         Function to get the outputs of the model.
         
@@ -111,20 +122,22 @@ class eFMU(object):
         Return
         ------
         output (dict): The outputs of the model in form of {name: value}.
-        '''    
-        if keys == []:
+        '''
+        if keys is None:
+            keys = []
+        if not keys:
             return self.output
-        else:
-            if isinstance(keys, str):
-                keys = [keys]
-            out = {}
-            for k in keys:
-                if k in self.output.keys():
-                    out[k] = self.output[k]
-                else:
-                    raise KeyError('{} not in output list.'.format(k))
-            return out
-    def get_input(self, keys=[]):
+        if isinstance(keys, str):
+            keys = [keys]
+        out = {}
+        for k in keys:
+            if k in self.output:
+                out[k] = self.output[k]
+            else:
+                raise KeyError(f'{k} not in output list.')
+        return out
+
+    def get_input(self, keys=None):
         '''
         Function to get the inputs of the model.
         
@@ -136,21 +149,37 @@ class eFMU(object):
         Return
         ------
         input (dict): The inputs of the model in form of {name: value}.
-        '''   
-        if keys == []:
+        '''
+        if keys is None:
+            keys = []
+        if not keys:
             return self.input
-        else:
-            out = {}
-            for k in keys:
-                if k in self.input.keys():
-                    out[k] = self.input[k]
-                else:
-                    raise KeyError('{} not in input list.'.format(k))
-            return out
+        out = {}
+        for k in keys:
+            if k in self.input:
+                out[k] = self.input[k]
+            else:
+                raise KeyError(f'{k} not in input list.')
+        return out
+
+    def get_var(self, name):
+        '''
+        Function to get a specific variable in the model.
+        
+        Input
+        -----
+        name (str): The name of the variable.
+        
+        Return
+        ------
+        value (float or str): The value of the variable.
+        '''
+        return getattr(self, name)
+
 #     def update_storage(self, data, init=False):
 #         '''
 #         Function to update the internal storage of inputs and outputs.
-        
+#
 #         Input
 #         -----
 #         data (dict): The data to be stored in form of {name: value}.
@@ -165,29 +194,16 @@ class eFMU(object):
 #                     self.storage[k].update(data[k])
 #                 elif type(data[k]) in [type(0), type(0.0), type('')]:
 #                     self.storage[k] = data[k]
-    def get_var(self, name):
-        '''
-        Function to get a specific variable in the model.
-        
-        Input
-        -----
-        name (str): The name of the variable.
-        
-        Return
-        ------
-        value (float or str): The value of the variable.
-        '''
-        l = locals()
-        exec('x = self.'+name, globals(), l)
-        return l['x']
-        
+
 if __name__ == '__main__':
     print('This is an example controller in form of: c = a * b')
     # Simple multiplier as test controller (extend the eFMU class)
-    class testcontroller1(eFMU):
+    class testcontroller1(eFMU):  # pylint: disable=invalid-name
+        """Simple test controller that multiplies two inputs."""
         def __init__(self):
-            self.input = {'a':None,'b':None}
-            self.output = {'c':None}
+            super().__init__()
+            self.input = {'a': None, 'b': None}
+            self.output = {'c': None}
         def compute(self):
             self.output['c'] = self.input['a'] * self.input['b']
             return 'Compute ok'
@@ -196,10 +212,10 @@ if __name__ == '__main__':
     # Get all variables
     variables = controller.get_model_variables()
     # Makeup some inputs
-    inputs = {}
+    inputs_dict = {}
     for var in variables:
-        inputs[var] = 2
+        inputs_dict[var] = 2
     # Query controller
-    print('Log-message:', controller.do_step(inputs=inputs))
+    print('Log-message:', controller.do_step(inputs=inputs_dict))
     print('Inputs:', controller.input)
     print('Outputs:', controller.output)

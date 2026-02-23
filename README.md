@@ -1,5 +1,6 @@
 # FMLC
 [![UnitTests](https://github.com/LBNL-ETA/FMLC/actions/workflows/unit-test.yml/badge.svg)](https://github.com/LBNL-ETA/FMLC/actions/workflows/unit-test.yml)
+[![Syntax](https://github.com/LBNL-ETA/FMLC/actions/workflows/syntax-test.yml/badge.svg)](https://github.com/LBNL-ETA/FMLC/actions/workflows/syntax-test.yml)
 
 #### Framework for Multi Layer Control (FMLC)
 -------------------------------------------------------------------------

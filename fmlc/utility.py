@@ -1,9 +1,22 @@
+# Framework for Multi Layer Control in Python (FMLC) Copyright (c) 2019,
+# The Regents of the University of California, through Lawrence Berkeley
+# National Laboratory (subject to receipt of any required approvals
+# from the U.S. Dept. of Energy). All rights reserved.
+
+"""
+Framework for Multi Layer Control
+Utility module.
+"""
+
+# pylint: disable=bare-except
+
 import os
 import io
 import numpy as np
 import pandas as pd
 
 def check_error(logs, printing=False):
+    '''check for error in module'''
     i = 0
     errors = pd.DataFrame()
     for n, l in logs.items():
@@ -16,10 +29,12 @@ def check_error(logs, printing=False):
     if printing:
         for e in errors.iterrows():
             e = e[1]
-            print(f'==>Found error in module {e["module"]} at {e["timestep"]}:\n{e["message"]}<==\n')
+            print(f'==>Found error in module {e["module"]} at' \
+                  + f' {e["timestep"]}:\n{e["message"]}<==\n')
     return errors
-    
+
 def pdlog_to_df(log):
+    '''convert the pandas log to dataframe'''
     res = pd.DataFrame()
     for r in log.items():
         try:

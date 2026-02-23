@@ -1,13 +1,18 @@
-#! /usr/bin/env python
+# Framework for Multi Layer Control in Python (FMLC) Copyright (c) 2019,
+# The Regents of the University of California, through Lawrence Berkeley
+# National Laboratory (subject to receipt of any required approvals
+# from the U.S. Dept. of Energy). All rights reserved.
 
-'''
-This module is part of the FMLC package.
-https://github.com/LBNL-ETA/FMLC
-'''
+"""
+Framework for Multi Layer Control
+Triggering module.
+"""
+
+# pylint: disable=invalid-name, redefined-outer-name, too-few-public-methods
 
 import time
 
-class triggering(object):
+class triggering:
     '''
     Class to handle internal triggering of models.
     '''
@@ -22,7 +27,7 @@ class triggering(object):
         '''
         self.ts = ts
         self.init_now = init_now
-        self._initialize_all_trigger() 
+        self._initialize_all_trigger()
 
     def _initialize_all_trigger(self):
         '''
@@ -74,21 +79,21 @@ class triggering(object):
         else:
             print('ERROR: "mode" must be "next" or "prev"')
         return trigger
-        
+
 if __name__ == '__main__':
-    ts = {} 
-    ts['main'] = 0.5 # seconds
-    ts['print'] = 1
-    print('"Main" should be triggered every {} s.'.format(ts['main']))
-    print('"Print" should be triggered every {} s.'.format(ts['print']))
-    trigger_test = triggering(ts)
+    ts_config = {}
+    ts_config['main'] = 0.5 # seconds
+    ts_config['print'] = 1
+    print(f'"Main" should be triggered every {ts_config["main"]} s.')
+    print(f'"Print" should be triggered every {ts_config["print"]} s.')
+    trigger_test = triggering(ts_config)
     now_init = time.time()
     now = now_init
     while now < now_init+3:
         now = time.time()
         if now >= trigger_test.trigger['main']:
-            print('Main triggered\t{}'.format(round(now, 2)))
+            print(f'Main triggered\t{round(now, 2)}')
             trigger_test.refresh_trigger('main', now)
         if now >= trigger_test.trigger['print']:
-            print('Print triggered\t{}'.format(round(now, 2)))
+            print(f'Print triggered\t{round(now, 2)}')
             trigger_test.refresh_trigger('print', now)
