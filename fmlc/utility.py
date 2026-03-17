@@ -33,12 +33,18 @@ def check_error(logs, printing=False):
                   + f' {e["timestep"]}:\n{e["message"]}<==\n')
     return errors
 
-def pdlog_to_df(log):
+def pdlog_to_df(log, index_name='name', typ='frame'):
     '''convert the pandas log to dataframe'''
     res = pd.DataFrame()
     for r in log.items():
         try:
-            t = pd.read_json(io.StringIO(r[1])).set_index('name')
+            if typ == 'frame':
+                t = pd.read_json(io.StringIO(r[1]), typ=typ)
+                if index_name:
+                    t = t.set_index(index_name)
+            else:
+                t = pd.read_json(io.StringIO(r[1]), typ=typ)
+                t = pd.DataFrame(t, columns=['value'])
             t.index.name = None
             t = t.stack(0)
             t.index = ['-'.join(ix) for ix in t.index]

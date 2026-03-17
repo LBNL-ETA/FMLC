@@ -59,8 +59,9 @@ class controller_dummy(eFMU):
         self.input = {'data':None}
         self.output = {'control':None}
     def compute(self):
-        if self.input['data'] == -1:
-            return 'Wariting to initialize.'            
+        msg = self.check_data(self.input['data'], True)
+        if msg:
+            return msg        
         data = pd.read_json(self.input['data'])
         data['P_batt'] = data['P_load'] - data['P_pv']
         control = data['P_batt'].values.tolist()

@@ -110,6 +110,16 @@ class eFMU:  # pylint: disable=invalid-name
         Method to compute the output
         '''
 
+    def check_data(self, data, init=False):
+        '''
+        Check if data exchange is ready.
+        '''
+        if (data == -1 or not data) and init:
+            return 'Waiting to initialize.'
+        if (data == -1 or not data) and not init:
+            return 'Missing data.'
+        return ''
+
     def get_output(self, keys=None):
         '''
         Function to get the outputs of the model.
