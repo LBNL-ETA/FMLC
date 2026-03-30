@@ -12,7 +12,6 @@ import os
 import time
 import datetime as dtm
 import logging
-import warnings
 import traceback
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -69,7 +68,7 @@ class controller_stack(object):
 
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1',
-                 parallel=True, timeout=1e3, now=None,
+                 parallel=True, now=None,
                  workers=os.cpu_count()*5, timestep=0.25,
                  log_config=None, log_level=logging.WARNING, log_add_ts=True):
         """
@@ -124,7 +123,6 @@ class controller_stack(object):
         self.debug = debug
         self.name = name
         self.parallel = parallel
-        self.timeout = timeout
         if not now:
             now = time.time()
         self.workers = workers
@@ -240,16 +238,18 @@ class controller_stack(object):
         """
         Validate the input mapping.
         """
-        m = list(mapping.keys())
+        maps = list(mapping.keys())
+        # missing keys?
         for name in sorted(self.controller.keys()):
             for c in self.controller[name]['inputs']:
                 key = f'{name}_{c}'
-                if key in m:
-                    m.remove(key)
+                if key in maps:
+                    maps.remove(key)
                 else:
                     raise KeyError(f'{key} not in mapping.')
-        if m:
-            raise KeyError(f'{m} not a control parameter.')
+        # additional keys?
+        if maps:
+            raise KeyError(f'{maps} not a control parameter.')
         self.mapping = mapping
 
     def __check_debug(self):
@@ -361,18 +361,24 @@ class controller_stack(object):
                 break
             ctrl['running'] = True
             if self.parallel:
-                p = self.executor.submit(self.do_control, name, ctrl, now, self.parallel)
-                start_rt = time.time()
-                try:
-                    p.result(self.timeout)  # pylint: disable=broad-exception-caught
-                    if time.time() - start_rt > self.timeout:
-                        warnings.warn(f'Controller "{name}" timed out.', Warning)
+                # setup timeout
+                timeout = 1e6
+                if 'timeout' in ctrl['inputs']:
+                    timeout = self.data_db[f'{name}_timeout']
+                try:  # pylint: disable=broad-exception-caught
+                    # submit job (start immediately)
+                    start_rt = time.time()
+                    p = self.executor.submit(self.do_control, name, ctrl, now, self.parallel)
+                    # check if job finished
+                    p.result(timeout)
+                    if time.time() - start_rt > timeout:
+                        self.logger.warning('Controller "%s" timed out.', name)
                         ctrl['running'] = False
                         break
                 except Exception as e:  # pylint: disable=broad-exception-caught
-                    warnings.warn(
-                        f'ERROR: Controller "{name}": {e}\n\n{traceback.format_exc()}',
-                        Warning)
+                    tb = traceback.format_exc()
+                    err_msg = f'ERROR: Controller "{name}": {e}\n\n{tb}'
+                    self.logger.warning(err_msg)
                     ctrl['running'] = False
                     break
             else:
@@ -448,16 +454,11 @@ class controller_stack(object):
         for c in self.controller[name]['inputs']:
             if c in ['time', 'uid']:
                 continue
-            mapping = self.mapping[name+'_'+c]
-            if isinstance(mapping, (int, float)):
-                inputs[c] = mapping
-            elif isinstance(mapping, list):
-                raise KeyError('Not implemented ' + str(mapping))
+            mapping = self.mapping[f'{name}_{c}']
+            if mapping in list(self.data_db.keys()):
+                inputs[c] = self.data_db[mapping]
             else:
-                if self.mapping[name+'_'+c] in list(self.data_db.keys()):
-                    inputs[c] = self.data_db[self.mapping[name+'_'+c]]
-                else:
-                    inputs[c] = self.mapping[name+'_'+c]
+                inputs[c] = mapping
         return inputs
 
     def read_from_db(self, refresh_device=False):

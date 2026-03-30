@@ -9,7 +9,6 @@ Baseclass module.
 """
 
 import abc
-import time
 import traceback
 
 default_output = -1  # pylint: disable=invalid-name
@@ -44,15 +43,8 @@ class eFMU:  # pylint: disable=invalid-name
         if inputs is None:
             inputs = {}
         try:  # pylint: disable=broad-exception-caught
-            st = time.time()
             self.set_inputs(inputs)
             message = self.compute()
-            if 'timeout' in self.input:
-                timeout = self.input['timeout'] if self.input['timeout'] else 1e6
-                if st + timeout < time.time():
-                    for k in self.output:
-                        self.output[k] = default_output
-                    message = f'ERROR: Timed out after {round(time.time()-st, 1)} > {timeout} s.'
             return message
         except Exception as e:  # pylint: disable=broad-exception-caught
             return f'ERROR: {e}\n\n{traceback.format_exc()}'

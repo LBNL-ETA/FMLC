@@ -35,7 +35,7 @@ class testcontroller2(eFMU):
 
 class testcontroller3(eFMU):
     def __init__(self):
-        self.input = {'a': None, 'b': None}
+        self.input = {'a': None, 'b': None, 'timeout': None}
         self.output = {'c': None}
         self.init = True
 
@@ -47,7 +47,7 @@ class testcontroller3(eFMU):
 
 class testcontroller4(eFMU):
     def __init__(self):
-        self.input = {'a': None, 'b': None}
+        self.input = {'a': None, 'b': None, 'timeout': None}
         self.output = {'c': None}
         self.init = True
 
@@ -86,13 +86,14 @@ def test_normal():
     mapping['forecast1_b'] = 4
     mapping['forecast2_a'] = 20
     mapping['forecast2_b'] = 4
+    mapping['forecast2_timeout'] = 30
     mapping['forecast3_a'] = 30
     mapping['forecast3_b'] = 4
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
-    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2, workers=100)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, workers=100)
 
     controller.run_query_control_for(5)
     
@@ -171,9 +172,10 @@ def test_stuckController():
     mapping['forecast3_b'] = 4
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
+    mapping['mpc1_timeout'] = 0.2
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
-    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=0.5, workers=100)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, workers=100)
     
     # Catch warning.
     with warnings.catch_warnings(record=True) as w:
@@ -236,13 +238,15 @@ def test_stuckController():
     mapping['forecast1_b'] = 4
     mapping['forecast2_a'] = 20
     mapping['forecast2_b'] = 4
+    mapping['forecast2_timeout'] = 2
     mapping['forecast3_a'] = 30
     mapping['forecast3_b'] = 4
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
+    mapping['mpc1_timeout'] = 0.8
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
-    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=0.8, workers=100)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, workers=100)
     
     #Catch Warnings
     with warnings.catch_warnings(record=True) as w:
@@ -301,13 +305,14 @@ def test_serial():
     mapping['forecast1_b'] = 4
     mapping['forecast2_a'] = 20
     mapping['forecast2_b'] = 4
+    mapping['forecast2_timeout'] = 2
     mapping['forecast3_a'] = 30
     mapping['forecast3_b'] = 4
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
-    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=False, timeout=2)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=False)
 
     for i in range(6):
         controller.query_control(time.time())

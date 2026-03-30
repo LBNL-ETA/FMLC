@@ -73,7 +73,7 @@ def test_input_errors():
     mapping['mpc1_b'] = 'forecast1_a'
     mapping['control1_a'] = 'mpc1_c'
     try:
-        controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
+        controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True)
         AssertionError
     except KeyError as e:
         assert 'mapping' in str(e)
@@ -101,7 +101,7 @@ def test_input_errors():
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
     try:
-        controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
+        controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True)
         AssertionError
     except KeyError as e:
         assert 'parameter' in str(e)
@@ -115,7 +115,7 @@ def test_init_once():
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
-    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, timeout=2)
+    controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True)
 
     obj = controller.controller_objects['forecast1']
     for i in range(3):
