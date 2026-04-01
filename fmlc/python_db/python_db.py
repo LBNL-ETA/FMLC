@@ -8,6 +8,7 @@ Framework for Multi Layer Control
 PythonDB module.
 """
 
+import os
 from json import dumps, loads
 from datetime import datetime
 from os import path
@@ -34,6 +35,7 @@ def status(self):
     temp['dev_debug'] = str(db['dev_debug'])
     temp['dev_nodename'] = db['dev_nodename']
     temp['dev_error'] = db['dev_error']
+    temp['pid'] = db['pid']
     json_file = dumps(temp, sort_keys=True, separators=(',', ': ')).encode()
     self.wfile.write(json_file)
 
@@ -121,6 +123,7 @@ if __name__ == '__main__':
     db['dev_status'] = "starting"
     db['dev_error'] = 'NA'
     db['timezone'] = int(int(mktime(gmtime()) - time()) / 60 / 60) * -1
+    db['pid'] = os.getpid()
     print(
         "Starting Python_db for "
         + db['dev_nodename']

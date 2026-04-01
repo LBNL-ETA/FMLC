@@ -8,21 +8,22 @@ Framework for Multi Layer Control
 Stackedclass module.
 """
 
+# pylint: disable=invalid-name, too-many-arguments, too-many-positional-arguments
+# pylint: disable=broad-except, too-many-instance-attributes
+
 import os
 import time
-import datetime as dtm
 import logging
 import traceback
 import threading
-from concurrent.futures import ThreadPoolExecutor
+import datetime as dtm
 from copy import deepcopy as copy_dict
-
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 
 from .python_db.utility import PythonDBWrapper, write_db, read_db
 from .triggering import triggering
-
-# pylint: disable=pointless-string-statement
+from .worker import ProcessWorkerPipe
 
 # Setup logging
 logging.basicConfig(
@@ -45,12 +46,13 @@ def log_to_db(name, ctrl, now, db_address):
     """
     temp = {}
     for k, v in ctrl['input'][now].items():
-        temp[name+'_'+k] = v
+        temp[name + '_' + k] = v
     for k, v in ctrl['output'][now].items():
-        temp[name+'_'+k] = v
+        temp[name + '_' + k] = v
     e = write_db(temp, db_address)
     if 'ERROR' in e:
-        print(f'An error occurred when writing "{name}" to internal PythonDB database: {e}.')
+        print(f'An error occurred when writing "{name}" to internal PythonDB '
+              f'database: {e}.')
 
 
 default_log_config = {
@@ -61,21 +63,58 @@ default_log_config = {
     'log_keys': ['input', 'output', 'log']
 }
 
+def _test_do_control(log_level):
+    _log = logging.getLogger(__name__)
+    _log.setLevel(log_level)
+    pid = os.getpid()
+    _log.debug('Start do_step for "%s" at %s', 'name', pid)
 
-# pylint: disable=invalid-name,useless-object-inheritance,too-many-instance-attributes
-class controller_stack(object):
+def _execute_do_control(name: str, controller_fun, inputs: dict, now: float, log_level):
+    """
+    Runs in a separate process.  Calls the controllers do_step and
+    returns everything that the parent needs to store.
+    """
+    # Minimal logging – child processes do not share the parent logger.
+    _log = logging.getLogger(__name__)
+    _log.setLevel(log_level)
+    pid = os.getpid()
+
+    _log.debug('Start do_step for "%s" at %s', name, pid)
+
+    # query controller
+    msg = controller_fun.do_step(inputs=inputs)
+
+    # get controller output
+    output = copy_dict(controller_fun.output)
+
+    _log.debug('Finished do_step for "%s" at %s', name, pid)
+
+    return {
+        'name': name,
+        'now': now,
+        'inputs': inputs,
+        'log': msg,
+        'output': output,
+    }
+
+class controller_stack:
     """Stack controller that manages multiple controller objects."""
 
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
-    def __init__(self, controller, mapping, tz=-8, debug=False, name='Zone1',
-                 parallel=True, now=None,
-                 workers=os.cpu_count()*5, timestep=0.25,
-                 log_config=None, log_level=logging.WARNING, log_add_ts=True):
+    def __init__(self,
+                 controller,
+                 mapping,
+                 tz=-8,
+                 debug=False,
+                 name='Zone1',
+                 parallel=True,
+                 now=None,
+                 workers=os.cpu_count() * 5,
+                 timestep=0.25,
+                 log_config=None,
+                 log_level=logging.WARNING,
+                 log_add_ts=True):
         """
         Initialize the controller stack object.
-
-        NOTE: The default value for workers is quite low. Try cranking it up to at
-        least 100 for better results.
 
         Input
         -----
@@ -141,20 +180,22 @@ class controller_stack(object):
         self.last_clear_time = now
         self.last_refresh_time = now
 
-        # placeholders for attributes that will be set later
+        # Placeholders for attributes that will be set later
         self.controller_objects = {}
         self.database = None
         self.execution_list = []
         self.data_db = {}
+        self.executor = None
+        self.pworker = None
 
         if parallel:
             self.lock = threading.Lock()
+
         # Setup self.logger
         self.logger = logging.getLogger(__name__)
         self.__check_debug()
         # Initialize
         self.__initialize(self.mapping, now)
-        self.executor = ThreadPoolExecutor(max_workers=workers)
 
     def __initialize(self, mapping, now):
         """
@@ -183,6 +224,7 @@ class controller_stack(object):
         self.__initialize_database()
         self.__initialize_mapping(mapping)
         self.generate_execution_list(now)
+        self.__initialize_workers()
 
     def __initialize_controller(self, now):
         """
@@ -197,12 +239,12 @@ class controller_stack(object):
         # Modify self.controllers to contain more information.
         # Register the controllers on the BaseManager.
         for name, ctrl in self.controller.items():
-            if not 'parameter' in ctrl.keys():
+            if 'parameter' not in ctrl:
                 ctrl['parameter'] = {}
             ctrl['fun'] = ctrl['function'](**ctrl['parameter'])
             ctrl['last'] = 0
-            ctrl['inputs'] = ctrl['fun'].input.keys()
-            ctrl['outputs'] = ctrl['fun'].output.keys()
+            ctrl['inputs'] = list(ctrl['fun'].input.keys())
+            ctrl['outputs'] = list(ctrl['fun'].output.keys())
             ctrl['log'] = {}
             ctrl['input'] = {}
             ctrl['output'] = {}
@@ -223,9 +265,9 @@ class controller_stack(object):
         db_columns = {}
         for name in sorted(self.controller.keys()):
             for i in self.controller[name]['inputs']:
-                db_columns[name+'_'+i] = -1
+                db_columns[name + '_' + i] = -1
             for o in self.controller[name]['outputs']:
-                db_columns[name+'_'+o] = -1
+                db_columns[name + '_' + o] = -1
         db_columns['timezone'] = self.tz
         db_columns['dev_nodename'] = self.name
         db_columns['dev_parallel'] = self.parallel
@@ -252,11 +294,18 @@ class controller_stack(object):
             raise KeyError(f'{maps} not a control parameter.')
         self.mapping = mapping
 
+    def __initialize_workers(self):
+        # Thread‑level pool – used for orchestration (logging, DB ops, etc.)
+        self.executor = ThreadPoolExecutor(max_workers=self.workers)
+
+        # Process‑level pool that actually runs the computation
+        max_workers = int(len(self.controller) + 2)
+        self.pworker = ProcessWorkerPipe(max_workers=max_workers)
+
     def __check_debug(self):
         if self.debug:
-            self.logger.setLevel(logging.DEBUG)
-        else:
-            self.logger.setLevel(self.log_level)
+            self.log_level = logging.DEBUG
+        self.logger.setLevel(self.log_level)
 
     def refresh_device_from_db(self):
         """
@@ -265,7 +314,6 @@ class controller_stack(object):
         self.tz = int(self.data_db['timezone'])
         self.debug = bool(self.data_db['dev_debug'])
         self.name = str(self.data_db['dev_nodename'])
-        # check if debugging
         self.__check_debug()
 
     def generate_execution_list(self, now):
@@ -287,15 +335,14 @@ class controller_stack(object):
         execution_map = {}
         controller_queue = sorted(self.controller.keys())
         i = 0
-        while len(controller_queue) > 0:
+        while controller_queue:
             name = controller_queue.pop(0)
             ctrl = self.controller[name]
             if isinstance(ctrl['sampletime'], str):
                 # checking for bad mappings. current fix is to time them out
                 if name not in self.controller:
-                    print(
-                        f'Controller {name} had a faulty mapping for sample time. '
-                        f'It is being removed from the stack')
+                    print(f'Controller {name} had a faulty mapping for sample '
+                          f'time. It is being removed from the stack')
                     self.controller.pop(name)
                 elif ctrl['sampletime'] not in controller_queue:
                     parent_idx = execution_map[ctrl['sampletime']]
@@ -305,17 +352,18 @@ class controller_stack(object):
                     # Re-add to back of queue
                     controller_queue.append(name)
             else:
-                self.execution_list.append({'controller': [name], 'next': now, 'running': False})
+                self.execution_list.append(
+                    {'controller': [name], 'next': now, 'running': False})
                 execution_map[name] = i
                 i += 1
         self.logger.debug('Execution list: %s', self.execution_list)
         self.logger.debug('Execution map: %s', execution_map)
 
-    def query_control(self, now):
+    def query_control(self, now, max_iter=None):
         """
         Trigger computations for controllers if the sample times have arrived.
         A call will be made to run controller queue for each "task" queue.
-        In multi thread mode, this will be submitted to self.executor.
+        In multi thread mode, this will be submitted to self.exe.
         """
         refreshed_db = False
         if now - self.last_refresh_time > self.refresh_period:
@@ -324,10 +372,14 @@ class controller_stack(object):
             refreshed_db = True
 
         if now - self.last_dump_time > self.dump_log_period:
-            self.executor.submit(self.log_to_csv, path=self.log_path, add_ts=self.log_add_ts)
+            self.executor.submit(self.log_to_csv,
+                                 path=self.log_path,
+                                 add_ts=self.log_add_ts)
             self.last_dump_time = now
         if now - self.last_clear_time > self.clear_log_period:
-            self.executor.submit(self.save_and_clear, path=self.log_path, add_ts=self.log_add_ts)
+            self.executor.submit(self.save_and_clear,
+                                 path=self.log_path,
+                                 add_ts=self.log_add_ts)
             self.last_clear_time = now
 
         for task in self.execution_list:
@@ -335,84 +387,82 @@ class controller_stack(object):
                 if not refreshed_db:
                     self.read_from_db()
                     refreshed_db = True
-                name = task['controller'][0]
                 # Start task
-                ts = self.controller[task['controller'][0]]['sampletime']
+                name = task['controller'][0]
+                ts = self.controller[name]['sampletime']
                 if self.stack_timestep != 0:
-                    task['next'] = int(now / self.stack_timestep) * self.stack_timestep + ts
+                    task['next'] = (int(now / self.stack_timestep) *
+                                    self.stack_timestep + ts)
                 else:
                     task['next'] = now + ts
                 # Do control
-                self.logger.debug('Executing Controller "%s"', name)
                 if self.parallel:
-                    self.executor.submit(controller_stack.run_controller_queue, self, task, now)
+                    self.executor.submit(self.run_controller_queue, task, now, max_iter)
                 else:
                     self.run_controller_queue(task, now)
 
-    def run_controller_queue(self, task, now):
+    def run_controller_queue(self, task, now, max_iter=None):
         """
         For every queue of dependencies, we run every controller. If it is a
         parallel stack, we open new threads for each control step.
         """
         for name in task['controller']:
             ctrl = self.controller[name]
-            self.logger.debug('Executing Controller "%s"', name)
+            self.logger.debug('Query Controller "%s"', name)
             if ctrl['running']:
                 break
-            ctrl['running'] = True
-            if self.parallel:
-                # setup timeout
-                timeout = 1e6
-                if 'timeout' in ctrl['inputs']:
-                    timeout = self.data_db[f'{name}_timeout']
-                try:  # pylint: disable=broad-exception-caught
-                    # submit job (start immediately)
-                    start_rt = time.time()
-                    p = self.executor.submit(self.do_control, name, ctrl, now, self.parallel)
-                    # check if job finished
-                    p.result(timeout)
-                    if time.time() - start_rt > timeout:
-                        self.logger.warning('Controller "%s" timed out.', name)
-                        ctrl['running'] = False
-                        break
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    tb = traceback.format_exc()
-                    err_msg = f'ERROR: Controller "{name}": {e}\n\n{tb}'
-                    self.logger.warning(err_msg)
-                    ctrl['running'] = False
-                    break
-            else:
-                self.do_control(name, ctrl, now, self.parallel)
+
+            # max iterations reached
+            if max_iter:
+                if len(ctrl['log']) >= max_iter:
+                    continue
+
+            # make inputs
+            inputs = self.update_inputs(name, now)
+            inputs['time'] = now
+            inputs['uid'] = name
+
+            # determine timeout
+            timeout = inputs.get('timeout', 1e6)
+
+            start_rt = time.time()
+            try:
+                self.logger.debug('Start Controller "%s"', name)
+                ctrl['running'] = True
+                result = self.pworker.submit(_execute_do_control,
+                                             name,
+                                             ctrl['fun'],
+                                             inputs,
+                                             now,
+                                             self.log_level,
+                                             timeout=timeout)
+                self.logger.debug('Completed Controller "%s"', name)
+
+                # save results
+                ctrl['input'][now] = result['inputs']
+                ctrl['log'][now] = result['log']
+                ctrl['output'][now] = result['output']
+                ctrl['last'] = now
+                log_to_db(name, ctrl, now, self.database.address)
+                self.read_from_db()
+
+            except TimeoutError:
+                # timeout
+                self.logger.warning('Controller "%s" timed out after %ss > %ss.',
+                                    name, round(time.time()-start_rt, 2), timeout)
+                ctrl['running'] = False
+                break
+
+            except Exception as e:
+                tb = traceback.format_exc()
+                err_msg = f'Exception in Controller "{name}": {e}\n\n{tb}'
+                self.logger.warning(err_msg)
+                ctrl['running'] = False
+                break
+
             ctrl['running'] = False
 
-    def do_control(self, name, ctrl, now, parallel=False):
-        """
-        This function will perform the actual computation of a controller.
-        """
-        self.logger.debug('QueryCTRL %s at %s (%s)', name,
-                          pd.to_datetime(now, unit='s') + pd.DateOffset(hours=self.tz), now)
-        if parallel:
-            with self.lock:
-                inputs = self.update_inputs(name, now)
-        else:
-            inputs = self.update_inputs(name, now)
-
-        # Add time as input
-        inputs['time'] = now
-        inputs['uid'] = name
-        ctrl['input'][now] = inputs
-        ctrl['log'][now] = ctrl['fun'].do_step(inputs=inputs)
-        ctrl['output'][now] = copy_dict(ctrl['fun'].output)
-        ctrl['last'] = now
-        log_to_db(name, ctrl, now, self.database.address)
-        self.read_from_db()
-
-        # Silence logging
-        for k in ['input', 'output', 'log']:
-            if k not in self.log_config['log_keys']:
-                ctrl[k][now] = {}
-
-    def run_query_control_for(self, seconds=None, timestep=None):
+    def run_query_control_for(self, seconds=None, timestep=None, max_iter=None, shutdown=True):
         """
         Calls query control every timestep for seconds seconds either parallely or serially.
         """
@@ -434,16 +484,17 @@ class controller_stack(object):
             now = time.time()
             if now >= trigger_test.trigger['main']:
                 if self.parallel:
-                    self.executor.submit(controller_stack.query_control, self, now)
+                    self.executor.submit(self.query_control, now, max_iter)
                 else:
-                    controller_stack.query_control(self, now)
+                    self.query_control(now, max_iter)
                 trigger_test.refresh_trigger('main', now)
 
         if self.parallel:
             time.sleep(self.stack_timestep * 5)
-        self.executor.shutdown()
-        self.executor = ThreadPoolExecutor(max_workers=self.workers)
         self.stack_timestep = global_timestep_holder
+
+        if shutdown:
+            self.shutdown()
 
     def update_inputs(self, name, _now):
         """
@@ -455,7 +506,7 @@ class controller_stack(object):
             if c in ['time', 'uid']:
                 continue
             mapping = self.mapping[f'{name}_{c}']
-            if mapping in list(self.data_db.keys()):
+            if mapping in self.data_db:
                 inputs[c] = self.data_db[mapping]
             else:
                 inputs[c] = mapping
@@ -480,29 +531,26 @@ class controller_stack(object):
         """
         if which is None:
             which = ['input', 'output', 'log']
-        controller = self.controller
         dfs = {}
-        for name, ctrl in controller.items():
-            if len(ctrl['log']) > 0:
-                init = True
-                for w in which:
-                    if w == 'log':
-                        index = ['logging']
-                        if hasattr(ctrl['fun'], 'columns'):
-                            index = ctrl['fun'].columns
-                        temp = pd.DataFrame(ctrl[w], index=index).transpose()
-                    else:
-                        temp = pd.DataFrame(ctrl[w]).transpose()
-                    temp.index = (
-                        pd.to_datetime(temp.index, unit='s', utc=True)
-                        .tz_localize(None)
-                        + pd.DateOffset(hours=self.tz)
-                    )
-                    if init:
-                        dfs[name] = temp.copy(deep=True)
-                        init = False
-                    else:
-                        dfs[name] = pd.concat([dfs[name], temp], axis=1)
+        for name, ctrl in self.controller.items():
+            if not ctrl['log']:
+                continue
+            init = True
+            for w in which:
+                if w == 'log':
+                    index = ['logging']
+                    if hasattr(ctrl['fun'], 'columns'):
+                        index = ctrl['fun'].columns
+                    temp = pd.DataFrame(ctrl[w], index=index).transpose()
+                else:
+                    temp = pd.DataFrame(ctrl[w]).transpose()
+                temp.index = (pd.to_datetime(temp.index, unit='s', utc=True)
+                               .tz_localize(None) + pd.DateOffset(hours=self.tz))
+                if init:
+                    dfs[name] = temp.copy(deep=True)
+                    init = False
+                else:
+                    dfs[name] = pd.concat([dfs[name], temp], axis=1)
         return dfs
 
     def save_and_clear(self, path='log', add_ts=True):
@@ -520,8 +568,8 @@ class controller_stack(object):
         now = now if add_ts else 0
         dfs = self.log_to_df()
         for name, log in dfs.items():
-            log_path = os.path.join(
-                path, f'{self.name}_{name}_{now}_log.csv')
+            log_path = os.path.join(path,
+                                    f'{self.name}_{name}_{now}_log.csv')
             log.to_csv(log_path)
 
     def clear_logs(self):
@@ -534,6 +582,8 @@ class controller_stack(object):
         """Shut down the database."""
         if dump_log:
             self.log_to_csv(path=self.log_path, add_ts=self.log_add_ts)
+        self.pworker.shutdown()
+        time.sleep(1)
         self.database.kill_db()
         self.executor.shutdown()
 

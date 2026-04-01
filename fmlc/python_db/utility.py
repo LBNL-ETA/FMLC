@@ -80,13 +80,15 @@ class PythonDBWrapper:
             self.port = 0
             self.error += 'Cannot find open port for ' + self.name
 
-    def test_db(self):
+    def test_db(self, return_resp=False):
         '''test if python db reachable'''
         try:
             link = f'http://127.0.0.1:{self.port}/status'
             with urlopen(link, timeout=1) as resp:
                 data = resp.read()
             status = json.loads(data)
+            if return_resp:
+                return status
             if status['dev_nodename'] == self.name:
                 return 999
             return 1
@@ -95,19 +97,27 @@ class PythonDBWrapper:
 
     def kill_db(self):
         '''shutdown python db'''
-        # Works only on Linux environment
-        cmd = f"ps aux | grep '{self.name}'"
-        cmd += " | awk '{print $2, $13}'"
-        with sp.Popen(cmd, shell=True, stdout=sp.PIPE) as pids:
-            out, _ = pids.communicate()
-        for line in out.splitlines():
-            parts = line.split(b' ')
-            if parts[1].decode() == self.name:
-                sp.call(
+        try:
+            db_pid = self.test_db(return_resp=True)['pid']
+            sp.call(
                     f'echo "Closing {self.mode} for {self.name}."',
                     shell=True,
                 )
-                os.kill(int(parts[0]), signal.SIGKILL)
+            os.kill(int(db_pid), signal.SIGKILL)
+        except: # pylint: disable=bare-except
+            # Works only on Linux environment
+            cmd = f"ps aux | grep '{self.name}'"
+            cmd += " | awk '{print $2, $13}'"
+            with sp.Popen(cmd, shell=True, stdout=sp.PIPE) as pids:
+                out, _ = pids.communicate()
+            for line in out.splitlines():
+                parts = line.split(b' ')
+                if parts[1].decode() == self.name:
+                    sp.call(
+                        f'echo "Forcing closing {self.mode} for {self.name}."',
+                        shell=True,
+                    )
+                    os.kill(int(parts[0]), signal.SIGKILL)
 
 if __name__ == '__main__':
     NAME = 'Zone1_db_test'

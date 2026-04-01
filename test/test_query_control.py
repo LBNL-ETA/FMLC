@@ -103,12 +103,6 @@ def test_normal():
     df4 = pd.DataFrame(controller.log_to_df()['mpc1'])
     df5 = pd.DataFrame(controller.log_to_df()['control1'])
 
-    #print(df1)
-    #print(df2)
-    #print(df3)
-    #print(df4)
-    #print(df5)
-    
     # Check number of records
     assert df1.shape[0] == 7
     assert df2.shape[0] == 4
@@ -153,7 +147,7 @@ def test_normal():
     assert list(df4['logging']) == ['Initialize', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!']
     assert list(df5['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
 
-def test_stuckController():
+def test_stuckControllerSingle():
     '''This tests if the timeout controllers can be caught'''
     ## CASE1: mpc1 stuck
     controller = {}
@@ -172,7 +166,7 @@ def test_stuckController():
     mapping['forecast3_b'] = 4
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
-    mapping['mpc1_timeout'] = 0.2
+    mapping['mpc1_timeout'] = 0.5
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
     controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, workers=100)
@@ -195,10 +189,9 @@ def test_stuckController():
     assert df1.shape[0] == 4
     assert df2.shape[0] == 4
     assert df3.shape[0] == 4
-    #assert df4.shape[0] == 1
+    assert df4.shape[0] == 1
     assert df5.shape[0] == 1
-    #assert len(df4.columns) == 1
-    assert len(df5.columns) == 1
+
     # Check contents of records
     assert pd.isna(df1['a'].iloc[0])
     assert pd.isna(df1['b'].iloc[0])
@@ -221,10 +214,10 @@ def test_stuckController():
     assert list(df1['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
     assert list(df2['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
     assert list(df3['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    #assert list(df4['logging']) == ['Initialize']
+    assert list(df4['logging']) == ['Initialize']
     assert list(df5['logging']) == ['Initialize']
     
-
+def test_stuckControllerMultiple():
     ##CASE2: mpc1 and forcast2 stuck
     controller = {}
     controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
@@ -238,7 +231,7 @@ def test_stuckController():
     mapping['forecast1_b'] = 4
     mapping['forecast2_a'] = 20
     mapping['forecast2_b'] = 4
-    mapping['forecast2_timeout'] = 2
+    mapping['forecast2_timeout'] = 0.8
     mapping['forecast3_a'] = 30
     mapping['forecast3_b'] = 4
     mapping['mpc1_a'] = 'forecast1_c'
@@ -263,16 +256,12 @@ def test_stuckController():
     df5 = pd.DataFrame(controller.log_to_df()['control1'])
 
     # Check number of records
-    #print(df1)
     assert df1.shape[0] == 7 
-    #assert df2.shape[0] == 1
+    assert df2.shape[0] == 1
     assert df3.shape[0] == 7
-    #print(df3)
-    #assert df4.shape[0] == 1
+    assert df4.shape[0] == 1
     assert df5.shape[0] == 1
-    #assert len(df2.columns) == 1
-    #assert len(df4.columns) == 1
-    assert len(df5.columns) == 1
+
     # Check contents of records
     assert pd.isna(df1['a'].iloc[0])
     assert pd.isna(df1['b'].iloc[0])
@@ -287,9 +276,9 @@ def test_stuckController():
     assert list(df3['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
     assert list(df3['c'])[1:] == [120.0, 120.0, 120.0, 120.0, 120.0, 120.0]
     assert list(df1['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    #assert list(df2['logging']) == ['Initialize']
+    assert list(df2['logging']) == ['Initialize']
     assert list(df3['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    #assert list(df4['logging']) == ['Initialize']
+    assert list(df4['logging']) == ['Initialize']
     assert list(df5['logging']) == ['Initialize']
 
 def test_serial():
