@@ -429,13 +429,20 @@ class controller_stack:
             try:
                 self.logger.debug('Start Controller "%s"', name)
                 ctrl['running'] = True
-                result = self.pworker.submit(_execute_do_control,
-                                             name,
-                                             ctrl['fun'],
-                                             inputs,
-                                             now,
-                                             self.log_level,
-                                             timeout=timeout)
+                if self.parallel:
+                    result = self.pworker.submit(_execute_do_control,
+                                                 name,
+                                                 ctrl['fun'],
+                                                 inputs,
+                                                 now,
+                                                 self.log_level,
+                                                 timeout=timeout)
+                else:
+                    result = _execute_do_control(name,
+                                                 ctrl['fun'],
+                                                 inputs,
+                                                 now,
+                                                 self.log_level)
                 self.logger.debug('Completed Controller "%s"', name)
 
                 # save results
@@ -506,10 +513,10 @@ class controller_stack:
             if c in ['time', 'uid']:
                 continue
             mapping = self.mapping[f'{name}_{c}']
-            if mapping in self.data_db:
-                inputs[c] = self.data_db[mapping]
-            else:
-                inputs[c] = mapping
+            inputs[c] = mapping
+            if isinstance(mapping, str):
+                if mapping in self.data_db:
+                    inputs[c] = self.data_db[mapping]
         return inputs
 
     def read_from_db(self, refresh_device=False):
