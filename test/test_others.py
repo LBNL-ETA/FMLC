@@ -117,7 +117,7 @@ def test_init_once():
     mapping['forecast1_b'] = 4
     controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True)
 
-    obj = controller.controller_objects['forecast1']
+    obj = controller.pworkers['forecast1']
     for i in range(3):
         controller.query_control(time.time())
-        assert controller.controller_objects['forecast1'] is obj
+        assert controller.pworkers['forecast1'] is obj

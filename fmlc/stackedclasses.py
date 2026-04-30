@@ -24,6 +24,7 @@ import pandas as pd
 from .python_db.utility import PythonDBWrapper, write_db, read_db
 from .triggering import triggering
 from .worker import ProcessWorkerPipe
+from .utility import DONE_MSGS
 
 # Setup logging
 logging.basicConfig(
@@ -44,7 +45,7 @@ def log_to_db(name, ctrl, now, db_address):
     now(float): The current time in seconds since the epoch as a floating point number.
     db_address(str): address of the database
     """
-    temp = {}
+    temp = {name + '_log': ctrl['log'][now]}
     for k, v in ctrl['input'][now].items():
         temp[name + '_' + k] = v
     for k, v in ctrl['output'][now].items():
@@ -69,7 +70,7 @@ def _test_do_control(log_level):
     pid = os.getpid()
     _log.debug('Start do_step for "%s" at %s', 'name', pid)
 
-def _execute_do_control(name: str, controller_fun, inputs: dict, now: float, log_level):
+def _execute_do_control(controller_fun, name: str, inputs: dict, now: float, log_level):
     """
     Runs in a separate process.  Calls the controllers do_step and
     returns everything that the parent needs to store.
@@ -181,12 +182,11 @@ class controller_stack:
         self.last_refresh_time = now
 
         # Placeholders for attributes that will be set later
-        self.controller_objects = {}
         self.database = None
         self.execution_list = []
         self.data_db = {}
         self.executor = None
-        self.pworker = None
+        self.pworkers = {}
 
         if parallel:
             self.lock = threading.Lock()
@@ -235,7 +235,7 @@ class controller_stack:
         now(float): The time in seconds since the epoch.
 
         """
-        self.controller_objects = {}
+        self.pworkers = {}
         # Modify self.controllers to contain more information.
         # Register the controllers on the BaseManager.
         for name, ctrl in self.controller.items():
@@ -253,7 +253,13 @@ class controller_stack:
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
             self.controller[name]['running'] = False
-            self.controller_objects[name] = ctrl['fun']
+            if self.parallel:
+                self.pworkers[name] = ProcessWorkerPipe(
+                    fn_init=ctrl['function'],
+                    worker_fn=_execute_do_control,
+                    initargs=ctrl['parameter'],
+                    max_workers=1,
+                )
 
     def __initialize_database(self):
         """
@@ -299,8 +305,7 @@ class controller_stack:
         self.executor = ThreadPoolExecutor(max_workers=self.workers)
 
         # Process‑level pool that actually runs the computation
-        max_workers = int(len(self.controller) + 2)
-        self.pworker = ProcessWorkerPipe(max_workers=max_workers)
+        # max_workers = int(len(self.controller) + 2)
 
     def __check_debug(self):
         if self.debug:
@@ -430,20 +435,24 @@ class controller_stack:
                 self.logger.debug('Start Controller "%s"', name)
                 ctrl['running'] = True
                 if self.parallel:
-                    result = self.pworker.submit(_execute_do_control,
-                                                 name,
-                                                 ctrl['fun'],
-                                                 inputs,
-                                                 now,
-                                                 self.log_level,
-                                                 timeout=timeout)
+                    result = self.pworkers[name].submit(name,
+                                                        inputs,
+                                                        now,
+                                                        self.log_level,
+                                                        timeout=timeout)
                 else:
-                    result = _execute_do_control(name,
-                                                 ctrl['fun'],
+                    result = _execute_do_control(ctrl['fun'],
+                                                 name,
                                                  inputs,
                                                  now,
                                                  self.log_level)
+                result['log'] = str(result['log'])
                 self.logger.debug('Completed Controller "%s"', name)
+
+                # check error
+                if not result['log'].lower() in [m.lower() for m in DONE_MSGS]:
+                    self.logger.warning('Controller "%s" log message:\n%s',
+                                        name, result['log'])
 
                 # save results
                 ctrl['input'][now] = result['inputs']
@@ -589,7 +598,9 @@ class controller_stack:
         """Shut down the database."""
         if dump_log:
             self.log_to_csv(path=self.log_path, add_ts=self.log_add_ts)
-        self.pworker.shutdown()
+        if self.parallel:
+            for worker in self.pworkers.values():
+                worker.shutdown()
         time.sleep(1)
         self.database.kill_db()
         self.executor.shutdown()
@@ -607,7 +618,7 @@ class controller_stack:
         if keys is None:
             keys = []
         if self.parallel:
-            ctrl = self.controller_objects[name]
+            ctrl = self.pworkers[name]
         else:
             ctrl = self.controller[name]['fun']
         return ctrl.get_output(keys=keys)
@@ -617,7 +628,7 @@ class controller_stack:
         if keys is None:
             keys = []
         if self.parallel:
-            ctrl = self.controller_objects[name]
+            ctrl = self.pworkers[name]
         else:
             ctrl = self.controller[name]['fun']
         return ctrl.get_input(keys=keys)

@@ -8,20 +8,22 @@ Framework for Multi Layer Control
 Utility module.
 """
 
-# pylint: disable=bare-except
+# pylint: disable=bare-except, dangerous-default-value
 
 import os
 import io
 import numpy as np
 import pandas as pd
 
-def check_error(logs, printing=False):
+DONE_MSGS = ['Done.', 'Waiting to initialize.']
+
+def check_error(logs, printing=False, done_msgs=DONE_MSGS):
     '''check for error in module'''
     i = 0
     errors = pd.DataFrame()
     for n, l in logs.items():
         for t, m in l['logging'].items():
-            if 'error' in str(m).lower():
+            if not str(m).lower() in [m.lower() for m in done_msgs]:
                 errors.loc[i, 'module'] = n
                 errors.loc[i, 'timestep'] = t
                 errors.loc[i, 'message'] = m

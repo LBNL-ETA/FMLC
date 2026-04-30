@@ -14,14 +14,13 @@ import threading
 import traceback
 from multiprocessing import Process, Pipe
 
-
-def _worker_process(conn, initializer, initargs):
+def _worker_process(conn, fn_init, worker_fn, initargs):
     """
-    Persistent worker loop. Receives (fn, args, kwargs) tuples,
-    sends back (True, result) or (False, exception_string).
+    Persistent worker loop. The callable is initialized once via fn_init,
+    then called repeatedly with arguments received over the pipe.
+    Sends back (True, result) or (False, exception_string).
     """
-    if initializer is not None:
-        initializer(*initargs)
+    fn = fn_init(**initargs)
     while True:
         try:
             msg = conn.recv()
@@ -32,9 +31,9 @@ def _worker_process(conn, initializer, initargs):
             # explicit shutdown
             break
 
-        fn, args, kwargs = msg
+        args, kwargs = msg
         try:
-            result = fn(*args, **kwargs)
+            result = worker_fn(fn, *args, **kwargs)
             conn.send((True, result))
         except Exception:  # pylint: disable=broad-exception-caught
             conn.send((False, traceback.format_exc()))
@@ -43,8 +42,9 @@ def _worker_process(conn, initializer, initargs):
 class _Worker:
     """Wraps a single persistent child process with its Pipe connection."""
 
-    def __init__(self, initializer=None, initargs=()):
-        self.initializer = initializer
+    def __init__(self, fn_init, worker_fn, initargs=()):
+        self.fn_init = fn_init
+        self.worker_fn = worker_fn
         self.initargs = initargs
         # one task at a time per worker
         self._lock = threading.Lock()
@@ -57,7 +57,7 @@ class _Worker:
         parent_conn, child_conn = Pipe()
         proc = Process(
             target=_worker_process,
-            args=(child_conn, self.initializer, self.initargs),
+            args=(child_conn, self.fn_init, self.worker_fn, self.initargs),
             daemon=True,
         )
         proc.start()
@@ -97,16 +97,16 @@ class _Worker:
         except OSError:
             pass
 
-    def run_task(self, fn, args, kwargs, timeout):
+    def run_task(self, args, kwargs, timeout):
         """
         Send a task to this worker and wait up to `timeout` seconds.
-        Returns (True, result) or raises TimeoutError / RuntimeError.
+        Returns the result or raises TimeoutError / RuntimeError.
         This is called from a thread so blocking here is fine.
         """
         with self._lock:
             self._busy = True
             try:
-                self._parent_conn.send((fn, args, kwargs))
+                self._parent_conn.send((args, kwargs))
                 if self._parent_conn.poll(timeout):
                     success, payload = self._parent_conn.recv()
                     if success:
@@ -115,7 +115,7 @@ class _Worker:
                         f"Worker raised an exception:\n{payload}"
                     )
                 raise TimeoutError(
-                    f"Worker {self._proc.pid} timed after {timeout}s"
+                    f"Worker {self._proc.pid} timed out after {timeout}s"
                 )
             finally:
                 self._busy = False
@@ -132,16 +132,19 @@ class _Worker:
 
 class ProcessWorkerPipe:
     """
-    Pool of persistent workers. Each worker is managed individually,
-    so a timeout kills and restarts only the offending process.
+    Pool of persistent workers. Each worker initializes its own callable
+    instance once via fn_init and reuses it across all calls, preserving
+    state between iterations. Only timed-out workers are restarted,
+    paying the init cost again. All other workers are left untouched.
     """
 
-    def __init__(self, max_workers=1, initializer=None, initargs=()):
-        self._initializer = initializer
+    def __init__(self, fn_init, worker_fn, initargs=(), max_workers=1):
+        self._fn_init = fn_init
+        self.worker_fn = worker_fn
         self._initargs = initargs
         self._lock = threading.Lock()
         self._workers = [
-            _Worker(initializer, initargs) for _ in range(max_workers)
+            _Worker(fn_init, worker_fn, initargs) for _ in range(max_workers)
         ]
 
     def _get_free_worker(self, poll_interval=0.05, acquire_timeout=None):
@@ -154,14 +157,14 @@ class ProcessWorkerPipe:
             with self._lock:
                 for w in self._workers:
                     if not w.busy and w.is_alive():
-                        w._busy = True  #pylint: disable=protected-access
+                        w._busy = True  # pylint: disable=protected-access
                         return w
             threading.Event().wait(poll_interval)
             elapsed += poll_interval
             if acquire_timeout is not None and elapsed >= acquire_timeout:
                 raise TimeoutError("No free worker became available in time.")
 
-    def submit(self, fn, *args, timeout=None, **kwargs):
+    def submit(self, *args, timeout=None, **kwargs):
         """
         Submit a task. Blocks until a worker is free, runs the task,
         and returns the result. Kills and restarts only the worker
@@ -169,7 +172,7 @@ class ProcessWorkerPipe:
         """
         worker = self._get_free_worker()
         try:
-            return worker.run_task(fn, args, kwargs, timeout=timeout)
+            return worker.run_task(args, kwargs, timeout=timeout)
         except TimeoutError:
             with self._lock:
                 worker.restart()
