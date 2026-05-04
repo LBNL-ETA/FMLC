@@ -15,7 +15,7 @@ import io
 import numpy as np
 import pandas as pd
 
-DONE_MSGS = ['Done.', 'Waiting to initialize.']
+DONE_MSGS = ['Done.', 'Waiting to initialize.', 'Initialize FMLC.']
 
 def check_error(logs, printing=False, done_msgs=DONE_MSGS):
     '''check for error in module'''

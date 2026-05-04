@@ -248,7 +248,7 @@ class controller_stack:
             ctrl['log'] = {}
             ctrl['input'] = {}
             ctrl['output'] = {}
-            ctrl['log'][now] = ['Initialize']
+            ctrl['log'][now] = ['Initialize FMLC.']
             ctrl['input'][now] = {}
             ctrl['output'][now] = {}
             self.controller[name] = ctrl
