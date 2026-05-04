@@ -141,11 +141,11 @@ def test_normal():
     assert list(df5['a'])[1:] == [400.0, 400.0, 400.0, 400.0, 400.0, 400.0]
     assert list(df5['b'])[1:] == [40.0, 40.0, 40.0, 40.0, 40.0, 40.0]
     assert list(df5['c'])[1:] == [16000.0, 16000.0, 16000.0, 16000.0, 16000.0, 16000.0]
-    assert list(df1['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df2['logging']) == ['Initialize', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!']
-    assert list(df3['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df4['logging']) == ['Initialize', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!']
-    assert list(df5['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df1['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df2['logging']) == ['Initialize FMLC.', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!']
+    assert list(df3['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df4['logging']) == ['Initialize FMLC.', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!']
+    assert list(df5['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
 
 def test_stuckControllerSingle():
     '''This tests if the timeout controllers can be caught'''
@@ -211,11 +211,11 @@ def test_stuckControllerSingle():
     assert list(df3['a'])[1:] == [30.0, 30.0, 30.0]
     assert list(df3['b'])[1:] == [4.0, 4.0, 4.0]
     assert list(df3['c'])[1:] == [120.0, 120.0, 120.0]
-    assert list(df1['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df2['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df3['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df4['logging']) == ['Initialize']
-    assert list(df5['logging']) == ['Initialize']
+    assert list(df1['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df2['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df3['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df4['logging']) == ['Initialize FMLC.']
+    assert list(df5['logging']) == ['Initialize FMLC.']
     
 def test_stuckControllerMultiple():
     ##CASE2: mpc1 and forcast2 stuck
@@ -275,11 +275,11 @@ def test_stuckControllerMultiple():
     assert list(df3['a'])[1:] == [30.0, 30.0, 30.0, 30.0, 30.0, 30.0]
     assert list(df3['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
     assert list(df3['c'])[1:] == [120.0, 120.0, 120.0, 120.0, 120.0, 120.0]
-    assert list(df1['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df2['logging']) == ['Initialize']
-    assert list(df3['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df4['logging']) == ['Initialize']
-    assert list(df5['logging']) == ['Initialize']
+    assert list(df1['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df2['logging']) == ['Initialize FMLC.']
+    assert list(df3['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df4['logging']) == ['Initialize FMLC.']
+    assert list(df5['logging']) == ['Initialize FMLC.']
 
 def test_serial():
     controller = {}
@@ -351,8 +351,8 @@ def test_serial():
     assert list(df5['a'])[1:] == [400.0, 400.0, 400.0, 400.0, 400.0, 400.0]
     assert list(df5['b'])[1:] == [40.0, 40.0, 40.0, 40.0, 40.0, 40.0]
     assert list(df5['c'])[1:] == [16000.0, 16000.0, 16000.0, 16000.0, 16000.0, 16000.0]
-    assert list(df1['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df2['logging']) == ['Initialize', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!']
-    assert list(df3['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df4['logging']) == ['Initialize', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!']
-    assert list(df5['logging']) == ['Initialize', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df1['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df2['logging']) == ['Initialize FMLC.', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!']
+    assert list(df3['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df4['logging']) == ['Initialize FMLC.', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!']
+    assert list(df5['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
