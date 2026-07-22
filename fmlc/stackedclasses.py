@@ -512,6 +512,15 @@ class controller_stack:
         if shutdown:
             self.shutdown()
 
+    def wait_idle(self, poll=0.05):
+        """Block until every controller in the stack has running=False.
+
+        Useful for simulation: call after query_control to wait for all
+        controllers to finish before advancing simulated time.
+        """
+        while any(ctrl['running'] for ctrl in self.controller.values()):
+            time.sleep(poll)
+
     def update_inputs(self, name, _now):
         """
         Returns a mapping of the inputs of the given controller based on self.mapping.
