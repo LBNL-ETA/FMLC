@@ -8,62 +8,18 @@ from os import path
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from fmlc.triggering import triggering
-from fmlc.baseclasses import eFMU
 from fmlc.stackedclasses import controller_stack
-
-class testcontroller1(eFMU):
-    def __init__(self):
-        self.input = {'a': None, 'b': None}
-        self.output = {'c': None}
-        self.init = True
-    def compute(self):
-        self.init= False
-        self.output['c'] = self.input['a'] * self.input['b']
-        return 'testcontroller1 did a computation!'
-
-class testcontroller2(eFMU):
-    def __init__(self):
-        self.input = {'a': None, 'b': None}
-        self.output = {'c': None}
-        self.init = True
-
-    def compute(self):
-        self.init = False
-        self.output['c'] = self.input['a'] * self.input['b']
-        time.sleep(0.2)
-        return 'testcontroller2 did a computation!'
-
-class testcontroller3(eFMU):
-    def __init__(self):
-        self.input = {'a': None, 'b': None, 'timeout': None}
-        self.output = {'c': None}
-        self.init = True
-
-    def compute(self):
-        self.init = False
-        self.output['c'] = self.input['a'] * self.input['b']
-        time.sleep(1)
-        return 'testcontroller3 did a computation!'
-
-class testcontroller4(eFMU):
-    def __init__(self):
-        self.input = {'a': None, 'b': None, 'timeout': None}
-        self.output = {'c': None}
-        self.init = True
-
-    def compute(self):
-        self.init = False
-        self.output['c'] = self.input['a'] * self.input['b']
-        time.sleep(10)
-        return 'testcontroller4 did a computation!'
+from fmlc.modules.dummy_modules import Multiplier
         
 def test_sampletime():
     '''This tests if the sample time is working properly'''
     controller = {}
-    controller['forecast1'] = {'function': testcontroller1, 'sampletime': 3}
+    controller['forecast1'] = {'function': Multiplier, 'sampletime': 3}
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
+    mapping['forecast1_delay'] = None
+    mapping['forecast1_timeout'] = None
     controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True)
     now = time.time()
     controller.run_query_control_for(10)
@@ -75,24 +31,33 @@ def test_sampletime():
 
 def test_normal():
     controller = {}
-    controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
-    controller['mpc1'] = {'function':testcontroller2, 'sampletime':'forecast1'}
-    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'function':testcontroller3, 'sampletime':2}
-    controller['forecast3'] = {'function':testcontroller1, 'sampletime': 1}
+    controller['forecast1'] = {'function': Multiplier, 'sampletime':1}
+    controller['mpc1'] = {'function': Multiplier, 'sampletime':'forecast1'}
+    controller['control1'] = {'function': Multiplier, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function': Multiplier, 'sampletime':2}
+    controller['forecast3'] = {'function': Multiplier, 'sampletime': 1}
 
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
+    mapping['forecast1_delay'] = None
+    mapping['forecast1_timeout'] = None
     mapping['forecast2_a'] = 20
     mapping['forecast2_b'] = 4
+    mapping['forecast2_delay'] = 1
     mapping['forecast2_timeout'] = 30
     mapping['forecast3_a'] = 30
     mapping['forecast3_b'] = 4
+    mapping['forecast3_delay'] = None
+    mapping['forecast3_timeout'] = None
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
+    mapping['mpc1_delay'] = 0.2
+    mapping['mpc1_timeout'] = None
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
+    mapping['control1_delay'] = None
+    mapping['control1_timeout'] = None
     controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, workers=100)
 
     controller.run_query_control_for(5)
@@ -141,34 +106,43 @@ def test_normal():
     assert list(df5['a'])[1:] == [400.0, 400.0, 400.0, 400.0, 400.0, 400.0]
     assert list(df5['b'])[1:] == [40.0, 40.0, 40.0, 40.0, 40.0, 40.0]
     assert list(df5['c'])[1:] == [16000.0, 16000.0, 16000.0, 16000.0, 16000.0, 16000.0]
-    assert list(df1['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df2['logging']) == ['Initialize FMLC.', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!']
-    assert list(df3['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df4['logging']) == ['Initialize FMLC.', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!']
-    assert list(df5['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df1['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
+    assert list(df2['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.']
+    assert list(df3['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
+    assert list(df4['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
+    assert list(df5['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
 
 def test_stuckControllerSingle():
     '''This tests if the timeout controllers can be caught'''
     ## CASE1: mpc1 stuck
     controller = {}
-    controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
-    controller['mpc1'] = {'function':testcontroller4, 'sampletime':'forecast1'}
-    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'function':testcontroller1, 'sampletime':1}
-    controller['forecast3'] = {'function':testcontroller1, 'sampletime':1}
+    controller['forecast1'] = {'function': Multiplier, 'sampletime':1}
+    controller['mpc1'] = {'function': Multiplier, 'sampletime':'forecast1'}
+    controller['control1'] = {'function': Multiplier, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function': Multiplier, 'sampletime':1}
+    controller['forecast3'] = {'function': Multiplier, 'sampletime':1}
 
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
+    mapping['forecast1_delay'] = None
+    mapping['forecast1_timeout'] = None
     mapping['forecast2_a'] = 20
     mapping['forecast2_b'] = 4
+    mapping['forecast2_delay'] = None
+    mapping['forecast2_timeout'] = None
     mapping['forecast3_a'] = 30
     mapping['forecast3_b'] = 4
+    mapping['forecast3_delay'] = None
+    mapping['forecast3_timeout'] = None
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
+    mapping['mpc1_delay'] = 10
     mapping['mpc1_timeout'] = 0.5
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
+    mapping['control1_delay'] = None
+    mapping['control1_timeout'] = None
     controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, workers=100)
     
     # Catch warning.
@@ -211,34 +185,42 @@ def test_stuckControllerSingle():
     assert list(df3['a'])[1:] == [30.0, 30.0, 30.0]
     assert list(df3['b'])[1:] == [4.0, 4.0, 4.0]
     assert list(df3['c'])[1:] == [120.0, 120.0, 120.0]
-    assert list(df1['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df2['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df3['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df1['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.']
+    assert list(df2['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.']
+    assert list(df3['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.']
     assert list(df4['logging']) == ['Initialize FMLC.']
     assert list(df5['logging']) == ['Initialize FMLC.']
     
 def test_stuckControllerMultiple():
     ##CASE2: mpc1 and forcast2 stuck
     controller = {}
-    controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
-    controller['mpc1'] = {'function':testcontroller3, 'sampletime':'forecast1'}
-    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'function':testcontroller3, 'sampletime':1}
-    controller['forecast3'] = {'function':testcontroller1, 'sampletime':1}
+    controller['forecast1'] = {'function': Multiplier, 'sampletime':1}
+    controller['mpc1'] = {'function': Multiplier, 'sampletime':'forecast1'}
+    controller['control1'] = {'function': Multiplier, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function': Multiplier, 'sampletime':1}
+    controller['forecast3'] = {'function': Multiplier, 'sampletime':1}
 
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
+    mapping['forecast1_delay'] = None
+    mapping['forecast1_timeout'] = None
     mapping['forecast2_a'] = 20
     mapping['forecast2_b'] = 4
+    mapping['forecast2_delay'] = 1
     mapping['forecast2_timeout'] = 0.8
     mapping['forecast3_a'] = 30
     mapping['forecast3_b'] = 4
+    mapping['forecast3_delay'] = None
+    mapping['forecast3_timeout'] = None
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
+    mapping['mpc1_delay'] = 1
     mapping['mpc1_timeout'] = 0.8
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
+    mapping['control1_delay'] = None
+    mapping['control1_timeout'] = None
     controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=True, workers=100)
     
     #Catch Warnings
@@ -275,32 +257,41 @@ def test_stuckControllerMultiple():
     assert list(df3['a'])[1:] == [30.0, 30.0, 30.0, 30.0, 30.0, 30.0]
     assert list(df3['b'])[1:] == [4.0, 4.0, 4.0, 4.0, 4.0, 4.0]
     assert list(df3['c'])[1:] == [120.0, 120.0, 120.0, 120.0, 120.0, 120.0]
-    assert list(df1['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df1['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
     assert list(df2['logging']) == ['Initialize FMLC.']
-    assert list(df3['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df3['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
     assert list(df4['logging']) == ['Initialize FMLC.']
     assert list(df5['logging']) == ['Initialize FMLC.']
 
 def test_serial():
     controller = {}
-    controller['forecast1'] = {'function':testcontroller1, 'sampletime':1}
-    controller['mpc1'] = {'function':testcontroller2, 'sampletime':'forecast1'}
-    controller['control1'] = {'function':testcontroller1, 'sampletime':'mpc1'}
-    controller['forecast2'] = {'function':testcontroller3, 'sampletime':1}
-    controller['forecast3'] = {'function':testcontroller1, 'sampletime':1}
+    controller['forecast1'] = {'function': Multiplier, 'sampletime':1}
+    controller['mpc1'] = {'function': Multiplier, 'sampletime':'forecast1'}
+    controller['control1'] = {'function': Multiplier, 'sampletime':'mpc1'}
+    controller['forecast2'] = {'function': Multiplier, 'sampletime':1}
+    controller['forecast3'] = {'function': Multiplier, 'sampletime':1}
 
     mapping = {}
     mapping['forecast1_a'] = 10
     mapping['forecast1_b'] = 4
+    mapping['forecast1_delay'] = None
+    mapping['forecast1_timeout'] = None
     mapping['forecast2_a'] = 20
     mapping['forecast2_b'] = 4
+    mapping['forecast2_delay'] = 1
     mapping['forecast2_timeout'] = 2
     mapping['forecast3_a'] = 30
     mapping['forecast3_b'] = 4
+    mapping['forecast3_delay'] = None
+    mapping['forecast3_timeout'] = None
     mapping['mpc1_a'] = 'forecast1_c'
     mapping['mpc1_b'] = 'forecast1_a'
+    mapping['mpc1_delay'] = 0.2
+    mapping['mpc1_timeout'] = None
     mapping['control1_a'] = 'mpc1_c'
     mapping['control1_b'] = 'mpc1_a'
+    mapping['control1_delay'] = None
+    mapping['control1_timeout'] = None
     controller = controller_stack(controller, mapping, tz=-8, debug=True, parallel=False)
 
     for i in range(6):
@@ -351,8 +342,8 @@ def test_serial():
     assert list(df5['a'])[1:] == [400.0, 400.0, 400.0, 400.0, 400.0, 400.0]
     assert list(df5['b'])[1:] == [40.0, 40.0, 40.0, 40.0, 40.0, 40.0]
     assert list(df5['c'])[1:] == [16000.0, 16000.0, 16000.0, 16000.0, 16000.0, 16000.0]
-    assert list(df1['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df2['logging']) == ['Initialize FMLC.', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!', 'testcontroller3 did a computation!']
-    assert list(df3['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
-    assert list(df4['logging']) == ['Initialize FMLC.', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!', 'testcontroller2 did a computation!']
-    assert list(df5['logging']) == ['Initialize FMLC.', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!', 'testcontroller1 did a computation!']
+    assert list(df1['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
+    assert list(df2['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
+    assert list(df3['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
+    assert list(df4['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']
+    assert list(df5['logging']) == ['Initialize FMLC.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.', 'Done.']

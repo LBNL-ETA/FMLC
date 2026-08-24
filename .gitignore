@@ -1,5 +1,6 @@
 *.tmp
 *.lock
+log/*
 
 # Python compiled files #
 #########################
