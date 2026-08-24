@@ -9,6 +9,8 @@ Framework for Multi Layer Control
 Flask backend server for the FMLC web interface.
 """
 
+# pylint: disable=invalid-name, broad-except
+
 from __future__ import annotations
 
 import argparse
@@ -31,8 +33,8 @@ log = logging.getLogger(__name__)
 _lock = threading.Lock()
 _stack: controller_stack | None = None
 _loop_structure: list | None = None
-_running = False # pylint: disable=invalid-name
-_fmlc_status = 'idle' # pylint: disable=invalid-name
+_running = False
+_fmlc_status = 'idle'
 _bg_thread: threading.Thread | None = None
 _LOOP_TIMESTEP = 0.5 # seconds between query_control calls
 
@@ -45,7 +47,7 @@ def _fmlc_loop() -> None:
                 s = _stack
             if s is not None:
                 s.query_control(time.time())
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             log.warning('Error in FMLC loop: %s', exc)
         time.sleep(_LOOP_TIMESTEP)
     log.info('FMLC background loop stopped.')
@@ -174,7 +176,7 @@ def api_load():
     if old_stack is not None:
         try:
             old_stack.shutdown()
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             log.warning('Error shutting down old stack: %s', exc)
 
     # Build the new stack
@@ -186,7 +188,7 @@ def api_load():
             timestep=_LOOP_TIMESTEP,
             name='FMLCWebUI',
         )
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         _fmlc_status = 'error'
         return jsonify({
             'status': 'error',
@@ -240,7 +242,7 @@ def api_unload():
         def _do_shutdown():
             try:
                 old_stack.shutdown()
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 log.warning('Error during unload shutdown: %s', exc)
 
         t = threading.Thread(target=_do_shutdown, daemon=True)
@@ -280,7 +282,7 @@ def api_status():
     if s is not None:
         try:
             modules = _module_status(s)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             log.warning('Error reading module status: %s', exc)
 
     return jsonify({'fmlc_status': status, 'modules': modules})
@@ -316,7 +318,7 @@ def main() -> None:
             time.sleep(1.2)
             try:
                 webbrowser.open(url)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 pass
         threading.Thread(target=_open_browser, daemon=True).start()
 

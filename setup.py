@@ -29,9 +29,10 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
     ],
-    packages=['fmlc'],
-    package_data={'': ['*.txt.', '*.md'], 
-                  'fmlc': ['python_db/*.py']},
+    packages=setuptools.find_packages(),
+    package_data={'': ['*.txt', '*.md'],
+                  'fmlc': ['python_db/*.py'],
+                  'fmlc.interface': ['static/*', 'example_config.json']},
     python_requires=">=3.10",
     install_requires= install_requires
 )
