@@ -1,0 +1,36 @@
+{
+  "controller": {
+    "getData": {
+      "function": "fmlc.modules.dummy_modules.GetData",
+      "sampletime": 60
+    },
+    "doControl": {
+      "function": "fmlc.modules.dummy_modules.DoControl",
+      "sampletime": "getData"
+    },
+    "setData": {
+      "function": "fmlc.modules.dummy_modules.SetData",
+      "sampletime": "doControl"
+    },
+    "getForecast": {
+      "function": "fmlc.modules.dummy_modules.GetData",
+      "sampletime": 300
+    },
+    "computeForecast": {
+      "function": "fmlc.modules.dummy_modules.DoControl",
+      "sampletime": "getForecast"
+    },
+    "setForecast": {
+      "function": "fmlc.modules.dummy_modules.SetData",
+      "sampletime": "computeForecast"
+    }
+  },
+  "mapping": {
+    "getData_mode": "read",
+    "doControl_data": "getData_data",
+    "setData_control": "doControl_control",
+    "getForecast_mode": "read",
+    "computeForecast_data": "getForecast_data",
+    "setForecast_control": "computeForecast_control"
+  }
+}
