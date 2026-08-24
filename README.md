@@ -17,6 +17,16 @@ The following link permits users to clone the source directory containing the [F
 
 The documentation for the [BaseClass](https://github.com/LBNL-ETA/FMLC/blob/master/documentation/baseclass.md) contains a details on how to use `baseclasses.py` to create controller objects. The [StackedClass](https://github.com/LBNL-ETA/FMLC/blob/master/documentation/stackedclasses.md) is the higher-level abstraction found in `stackedclasses.py` which handles parallelization, timing and triggering, data logging, and error handling of multiple baseclass modules.
 
+## Web Interface
+FMLC includes a web-based user interface (UI) for loading, starting, stopping, and monitoring a `controller_stack` at runtime. It is built with Flask as the backend and plain HTML/JavaScript as the frontend, requiring no additional build tools. The interface is compatible with all modern and older browser versions.
+
+To start the server, run the following command from the repository root:
+```
+python fmlc/interface/server.py [--host 127.0.0.1] [--port 5000] [--no-browser]
+```
+
+The UI allows selecting a JSON configuration file that defines the controller modules and their mappings. Module classes are referenced by their fully-qualified Python import path (e.g. `fmlc.modules.dummy_modules.GetData`), so any installed module can be used without modifying the server. An example configuration with two control loops is provided in `fmlc/interface/example_config.json`.
+
 ## Example
 To illustrate and test the FMLC functionality, each module executes some tests  when called as `main`. The `python triggering.py` command provides an example of the interal triggering of modules, while the `python baseclasses.py` command provides a simple example of a single controller. A complete example can be found [here](https://github.com/LBNL-ETA/FMLC/blob/master/examples/Test.ipynb).
 
