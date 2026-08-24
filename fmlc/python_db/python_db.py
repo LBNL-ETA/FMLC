@@ -26,7 +26,7 @@ db_name = ''  # pylint: disable=invalid-name
 def status(self):
     """Send device status as a JSON response."""
     self.send_response(200)
-    self.send_header("Content-type", "text/html")
+    self.send_header("Content-type", "application/json")
     self.end_headers()
 
     temp = {}
@@ -43,7 +43,7 @@ def write(self, new=True, store=True):
     """Write or update device data, and optionally store it to a CSV file."""
     if new:
         self.send_response(200)
-        self.send_header("Content-type", "text/html")
+        self.send_header("Content-type", "application/json")
         self.end_headers()
         # read new data and update dict
         length = int(self.headers['Content-Length'])
@@ -58,7 +58,7 @@ def write(self, new=True, store=True):
 def read(self):
     """Read the entire database and send it as a JSON response."""
     self.send_response(200)
-    self.send_header("Content-type", "text/html")
+    self.send_header("Content-type", "application/json")
     self.end_headers()
     # send full db as json file
     json_file = dumps(db, sort_keys=True, separators=(',', ': ')).encode()
@@ -87,9 +87,6 @@ class MyHandler(BaseHTTPRequestHandler):
         else:
             if db['dev_debug']:
                 self.send_error(404)
-            else:
-                pass
-        write(self, new=False, store=False)
 
     # pylint: disable=invalid-name
     def do_PUT(self):

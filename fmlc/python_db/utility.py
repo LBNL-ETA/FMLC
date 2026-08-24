@@ -30,9 +30,12 @@ def write_db(data, add_db):
     '''write to db'''
     try:
         data = json.dumps(data, sort_keys=True, separators=(',', ': '))
-        return requests.put('http://' + add_db + '/write',
+        resp = requests.put('http://' + add_db + '/write',
                             data=str(data),
                             timeout=TIMEOUT)
+        if resp.status_code != 200:
+            return f'ERROR: unexpected status {resp.status_code}: {resp.text}'
+        return ''
     except (TypeError, requests.exceptions.RequestException) as e:
         return f'ERROR: {e}.\n\n{traceback.format_exc()}'
 
@@ -44,7 +47,8 @@ def read_db(add_db):
                             timeout=TIMEOUT)
         return json.loads(resp.text.encode('ascii', 'ignore'))
     except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
-        return f'ERROR: {e}'
+        print(f'WARNING: read_db failed: {e}')
+        return {}
 
 class PythonDBWrapper:
     ''' The Python DB main class.'''
@@ -98,12 +102,15 @@ class PythonDBWrapper:
     def kill_db(self):
         '''shutdown python db'''
         try:
-            db_pid = self.test_db(return_resp=True)['pid']
-            sp.call(
-                    f'echo "Closing {self.mode} for {self.name}."',
-                    shell=True,
-                )
-            os.kill(int(db_pid), signal.SIGKILL)
+            db_pid = int(self.test_db(return_resp=True)['pid'])
+            sp.call(f'echo "Closing {self.mode} for {self.name}."', shell=True)
+            os.kill(db_pid, signal.SIGTERM)
+            sleep(0.5)
+            try:
+                os.kill(db_pid, 0) # check if still alive
+                os.kill(db_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass # already exited after SIGTERM
         except: # pylint: disable=bare-except
             # Works only on Linux environment
             cmd = f"ps aux | grep '{self.name}'"
@@ -117,7 +124,13 @@ class PythonDBWrapper:
                         f'echo "Forcing closing {self.mode} for {self.name}."',
                         shell=True,
                     )
-                    os.kill(int(parts[0]), signal.SIGKILL)
+                    os.kill(int(parts[0]), signal.SIGTERM)
+                    sleep(0.5)
+                    try:
+                        os.kill(int(parts[0]), 0)
+                        os.kill(int(parts[0]), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
 if __name__ == '__main__':
     NAME = 'Zone1_db_test'
