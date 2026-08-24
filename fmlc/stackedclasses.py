@@ -45,7 +45,8 @@ def log_to_db(name, ctrl, now, db_address):
     now(float): The current time in seconds since the epoch as a floating point number.
     db_address(str): address of the database
     """
-    temp = {name + '_log': ctrl['log'][now]}
+    temp = {name + '_log': ctrl['log'][now],
+            name + '_last': now}
     for k, v in ctrl['input'][now].items():
         temp[name + '_' + k] = v
     for k, v in ctrl['output'][now].items():
@@ -274,6 +275,8 @@ class controller_stack:
                 db_columns[name + '_' + i] = -1
             for o in self.controller[name]['outputs']:
                 db_columns[name + '_' + o] = -1
+            db_columns[name + '_log'] = 'Initialize FMLC.'
+            db_columns[name + '_last'] = 0
         db_columns['timezone'] = self.tz
         db_columns['dev_nodename'] = self.name
         db_columns['dev_parallel'] = self.parallel
