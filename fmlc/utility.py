@@ -10,12 +10,90 @@ Utility module.
 
 # pylint: disable=bare-except, dangerous-default-value
 
+import datetime as dtm
+import importlib
+import logging
 import os
 import io
 import numpy as np
 import pandas as pd
 
 DONE_MSGS = ['Done.', 'Waiting to initialize.', 'Initialize FMLC.']
+
+LOG_LEVEL_MAP = {
+    1: logging.DEBUG,
+    2: logging.INFO,
+    3: logging.WARNING,
+    4: logging.ERROR,
+    5: logging.CRITICAL,
+}
+
+def resolve_config(config: dict) -> tuple:
+    '''Parse a FMLC JSON config dict and return (controller, mapping, stack_kwargs).'''
+    if 'controller' not in config or not config['controller']:
+        raise ValueError("Config must contain a non-empty 'controller' dict.")
+    if 'mapping' not in config or not isinstance(config['mapping'], dict):
+        raise ValueError("Config must contain a 'mapping' dict.")
+
+    raw_controller = config['controller']
+    mapping = config['mapping']
+    controller = {}
+    for name, entry in raw_controller.items():
+        fn_path = entry['function']
+        try:
+            module_path, class_name = fn_path.rsplit('.', 1)
+            cls = getattr(importlib.import_module(module_path), class_name)
+        except (ValueError, ModuleNotFoundError, AttributeError) as exc:
+            raise ValueError(
+                f"Cannot import '{fn_path}' for controller '{name}': {exc}"
+            ) from exc
+        controller[name] = {
+            'function': cls,
+            'sampletime': entry['sampletime'],
+        }
+        if 'parameter' in entry:
+            controller[name]['parameter'] = entry['parameter']
+
+    stack_kwargs = config.get('stack_config', {})
+    if 'log_level' in stack_kwargs:
+        log_level_int = int(stack_kwargs['log_level'])
+        if log_level_int not in LOG_LEVEL_MAP:
+            raise ValueError(f'log_level must be 1-5, got {log_level_int}.')
+        stack_kwargs['log_level'] = LOG_LEVEL_MAP[log_level_int]
+
+    return controller, mapping, stack_kwargs
+
+
+def module_status(stack):
+    '''Return per-module last log message, last execution time, and duration, read from PythonDB.'''
+    stack.read_from_db()
+    db = stack.data_db
+
+    result = {}
+    for name in stack.controller:
+        last_log = db[name + '_logfmlc'] if name + '_logfmlc' in db else ''
+        if isinstance(last_log, list):
+            last_log = last_log[0] if last_log else ''
+        last_log = str(last_log)
+
+        last_ts = db[name + '_lastfmlc'] if name + '_lastfmlc' in db else 0
+        try:
+            last_ts = float(last_ts)
+        except (TypeError, ValueError):
+            last_ts = 0
+        last_exec = (dtm.datetime.fromtimestamp(last_ts).strftime('%Y-%m-%d %H:%M:%S')
+                     if last_ts else 'Never')
+
+        raw_dur = db[name + '_durationfmlc'] if name + '_durationfmlc' in db else -1
+        try:
+            last_duration = round(float(raw_dur), 1)
+        except (TypeError, ValueError):
+            last_duration = -1
+
+        result[name] = {
+            'last_log': last_log, 'last_exec': last_exec, 'last_duration': last_duration}
+    return result
+
 
 def check_error(logs, printing=False, done_msgs=DONE_MSGS):
     '''check for error in module'''

@@ -46,7 +46,8 @@ def log_to_db(name, ctrl, now, db_address):
     db_address(str): address of the database
     """
     temp = {name + '_logfmlc': ctrl['log'][now],
-            name + '_lastfmlc': now}
+            name + '_lastfmlc': now,
+            name + '_durationfmlc': ctrl['duration']}
     for k, v in ctrl['input'][now].items():
         temp[name + '_' + k] = v
     for k, v in ctrl['output'][now].items():
@@ -244,6 +245,7 @@ class controller_stack:
                 ctrl['parameter'] = {}
             ctrl['fun'] = ctrl['function'](**ctrl['parameter'])
             ctrl['last'] = 0
+            ctrl['duration'] = 0
             ctrl['inputs'] = list(ctrl['fun'].input.keys())
             ctrl['outputs'] = list(ctrl['fun'].output.keys())
             ctrl['log'] = {}
@@ -277,6 +279,7 @@ class controller_stack:
                 db_columns[name + '_' + o] = -1
             db_columns[name + '_logfmlc'] = 'Initialize FMLC.'
             db_columns[name + '_lastfmlc'] = 0
+            db_columns[name + '_durationfmlc'] = -1
         db_columns['timezone'] = self.tz
         db_columns['dev_nodename'] = self.name
         db_columns['dev_parallel'] = self.parallel
@@ -364,7 +367,7 @@ class controller_stack:
                     {'controller': [name], 'next': now, 'running': False})
                 execution_map[name] = i
                 i += 1
-        self.logger.debug('Execution list: %s', self.execution_list)
+        self.logger.info('Execution list: %s', self.execution_list)
         self.logger.debug('Execution map: %s', execution_map)
 
     def query_control(self, now, max_iter=None):
@@ -416,7 +419,7 @@ class controller_stack:
         """
         for name in task['controller']:
             ctrl = self.controller[name]
-            self.logger.debug('Query Controller "%s"', name)
+            self.logger.info('Query Controller "%s"', name)
             if ctrl['running']:
                 break
 
@@ -462,6 +465,7 @@ class controller_stack:
                 ctrl['log'][now] = result['log']
                 ctrl['output'][now] = result['output']
                 ctrl['last'] = now
+                ctrl['duration'] = time.time() - start_rt
                 log_to_db(name, ctrl, now, self.database.address)
                 self.read_from_db()
 

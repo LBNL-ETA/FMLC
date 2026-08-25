@@ -82,11 +82,11 @@ class GetData(eFMU):
         return msg
 
 class DoControl(eFMU):
-    """Simulates a control computation step."""
+    """Simulates a control computation step with an optional computation delay."""
 
     def __init__(self):
         super().__init__()
-        self.input = {'data': None}
+        self.input = {'data': None, 'control-delay': None}
         self.output = {'control': None, 'duration': None}
         self.init = False
 
@@ -102,6 +102,9 @@ class DoControl(eFMU):
                 data = json.loads(self.input['data'])
                 if not self.init:
                     self.init = True
+                delay = self.input['control-delay']
+                if delay:
+                    time.sleep(float(delay))
                 setpoint = round(data['power_kw'] * 0.9, 2) # simple control
                 control_action = {
                     'setpoint_kw': setpoint,

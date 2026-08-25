@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dtm
-import importlib
 import logging
 import threading
 import time
@@ -24,11 +23,15 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 from fmlc.stackedclasses import controller_stack
+from fmlc.utility import LOG_LEVEL_MAP, module_status, resolve_config
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / 'static'
 app = Flask(__name__, static_folder=str(STATIC_DIR))
 log = logging.getLogger(__name__)
+
+# Suppress werkzeug HTTP request log lines (GET /api/status 200 etc.)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 _lock = threading.Lock()
 _stack: controller_stack | None = None
@@ -37,6 +40,49 @@ _running = False
 _fmlc_status = 'idle'
 _bg_thread: threading.Thread | None = None
 _LOOP_TIMESTEP = 0.5 # seconds between query_control calls
+
+# In-memory log buffer: captures records from the root logger for display in the UI.
+_LOG_BUFFER_MAX = 2000
+
+class _UILogHandler(logging.Handler):
+    """Appends formatted log records to a capped in-memory list."""
+    def __init__(self):
+        super().__init__()
+        self._records = []
+        self._lock = threading.Lock()
+        self.tz = 0 # UTC offset in hours; updated when a stack is loaded
+
+    def formatTime(self, record, datefmt=None):
+        """Return timestamp adjusted by the configured tz offset."""
+        local_dt = dtm.datetime.utcfromtimestamp(record.created) + dtm.timedelta(hours=self.tz)
+        return local_dt.strftime(datefmt or '%Y-%m-%d %H:%M:%S')
+
+    def format(self, record):
+        """Format a record as 'TIMESTAMP LEVEL message (logger)'."""
+        ts = self.formatTime(record)
+        level = record.levelname.ljust(8)
+        return f'{ts} {level} {record.getMessage()} ({record.name})'
+
+    def emit(self, record):
+        """Format and append a log record, dropping the oldest if over capacity."""
+        line = self.format(record)
+        with self._lock:
+            self._records.append(line)
+            if len(self._records) > _LOG_BUFFER_MAX:
+                self._records.pop(0)
+
+    def get_records(self):
+        """Return a snapshot of the current log buffer."""
+        with self._lock:
+            return list(self._records)
+
+    def clear(self):
+        """Clear the log buffer."""
+        with self._lock:
+            self._records.clear()
+
+_ui_log_handler = _UILogHandler()
+logging.getLogger().addHandler(_ui_log_handler)
 
 def _fmlc_loop() -> None:
     """Daemon thread: calls query_control() every _LOOP_TIMESTEP seconds while _running."""
@@ -68,59 +114,6 @@ def _start_loop() -> None:
     _running = True
     _bg_thread = threading.Thread(target=_fmlc_loop, daemon=True, name='fmlc-loop')
     _bg_thread.start()
-
-def _module_status(stack: controller_stack) -> dict:
-    """Return per-module last log message and last execution time, read from PythonDB."""
-    stack.read_from_db()
-    db = stack.data_db
-
-    result = {}
-    for name in stack.controller:
-        # Log message: stored as string; init value is 'Initialize FMLC.'
-        last_log = db[name + '_logfmlc'] if name + '_logfmlc' in db else ''
-        if isinstance(last_log, list):
-            last_log = last_log[0] if last_log else ''
-        last_log = str(last_log)
-
-        # Last execution: Unix timestamp float, 0 means never run
-        last_ts = db[name + '_lastfmlc'] if name + '_lastfmlc' in db else 0
-        try:
-            last_ts = float(last_ts)
-        except (TypeError, ValueError):
-            last_ts = 0
-        last_exec = (dtm.datetime.fromtimestamp(last_ts).strftime('%Y-%m-%d %H:%M:%S')
-                     if last_ts else 'Never')
-
-        result[name] = {'last_log': last_log, 'last_exec': last_exec}
-    return result
-
-def _resolve_config(config: dict) -> tuple:
-    """Parse a JSON config dict and return (controller, mapping) ready for controller_stack."""
-    if 'controller' not in config or not config['controller']:
-        raise ValueError("Config must contain a non-empty 'controller' dict.")
-    if 'mapping' not in config or not isinstance(config['mapping'], dict):
-        raise ValueError("Config must contain a 'mapping' dict.")
-
-    raw_controller = config['controller']
-    mapping = config['mapping']
-    controller = {}
-    for name, entry in raw_controller.items():
-        fn_path = entry['function']
-        try:
-            module_path, class_name = fn_path.rsplit('.', 1)
-            cls = getattr(importlib.import_module(module_path), class_name)
-        except (ValueError, ModuleNotFoundError, AttributeError) as exc:
-            raise ValueError(
-                f"Cannot import '{fn_path}' for controller '{name}': {exc}"
-            ) from exc
-        controller[name] = {
-            'function': cls,
-            'sampletime': entry['sampletime'],
-        }
-        if 'parameter' in entry:
-            controller[name]['parameter'] = entry['parameter']
-
-    return controller, mapping
 
 def _build_loop_structure(stack: controller_stack) -> list:
     """Convert stack.execution_list into a JSON-serialisable list of loop descriptors."""
@@ -156,7 +149,7 @@ def api_load():
             return jsonify({'status': 'error', 'message': 'No JSON body received.'}), 400
         # Strip comment keys beginning with '_' (used in example_config.json)
         config = {k: v for k, v in config.items() if not k.startswith('_')}
-        controller, mapping = _resolve_config(config)
+        controller, mapping, stack_kwargs = resolve_config(config)
     except (ValueError, KeyError) as exc:
         return jsonify({'status': 'error', 'message': str(exc)}), 400
 
@@ -179,6 +172,13 @@ def api_load():
         except Exception as exc:
             log.warning('Error shutting down old stack: %s', exc)
 
+    # Apply tz to log handler before instantiating
+    _ui_log_handler.tz = stack_kwargs['tz']
+
+    # Drop server-controlled keys to avoid duplicate keyword argument errors
+    stack_kwargs.pop('parallel', None)
+    stack_kwargs.pop('timestep', None)
+
     # Build the new stack
     try:
         new_stack = controller_stack(
@@ -186,7 +186,7 @@ def api_load():
             mapping,
             parallel=True,
             timestep=_LOOP_TIMESTEP,
-            name='FMLCWebUI',
+            **stack_kwargs,
         )
     except Exception as exc:
         _fmlc_status = 'error'
@@ -202,7 +202,13 @@ def api_load():
         _loop_structure = loops
         _fmlc_status = 'loaded'
 
-    return jsonify({'status': 'ok', 'loops': loops})
+    inv_log_map = {v: k for k, v in LOG_LEVEL_MAP.items()}
+    sc_response = {
+        'tz': stack_kwargs['tz'],
+        'name': stack_kwargs['name'],
+        'log_level': inv_log_map[stack_kwargs['log_level']],
+    }
+    return jsonify({'status': 'ok', 'loops': loops, 'stack_config': sc_response})
 
 @app.route('/api/start', methods=['POST'])
 def api_start():
@@ -281,11 +287,22 @@ def api_status():
     modules = {}
     if s is not None:
         try:
-            modules = _module_status(s)
+            modules = module_status(s)
         except Exception as exc:
             log.warning('Error reading module status: %s', exc)
 
     return jsonify({'fmlc_status': status, 'modules': modules})
+
+@app.route('/api/logs', methods=['GET'])
+def api_logs():
+    """Return buffered log lines captured from the Python logging system."""
+    return jsonify({'lines': _ui_log_handler.get_records()})
+
+@app.route('/api/logs/clear', methods=['POST'])
+def api_logs_clear():
+    """Clear the in-memory log buffer."""
+    _ui_log_handler.clear()
+    return jsonify({'status': 'ok'})
 
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""

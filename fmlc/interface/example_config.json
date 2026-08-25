@@ -25,12 +25,17 @@
       "sampletime": "computeForecast"
     }
   },
+  "stack_config": {
+    "log_level": 2
+  },
   "mapping": {
     "getData_mode": "read",
     "doControl_data": "getData_data",
+    "doControl_control-delay": 5,
     "setData_control": "doControl_control",
     "getForecast_mode": "read",
     "computeForecast_data": "getForecast_data",
+    "computeForecast_control-delay": 30,
     "setForecast_control": "computeForecast_control"
   }
 }

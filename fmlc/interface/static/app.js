@@ -32,12 +32,19 @@ function onFileSelected(input) {
   reader.onload = function (evt) {
     try {
       _configJson = JSON.parse(evt.target.result);
+      // Populate fields from stack_config; only overwrite if each key is present
+      var sc = _configJson.stack_config || {};
+      if ('tz' in sc) { document.getElementById('cfg-tz').value = sc['tz']; }
+      if ('name' in sc) { document.getElementById('cfg-name').value = sc['name']; }
+      if ('log_level' in sc) { document.getElementById('cfg-loglevel').value = sc['log_level']; }
+      setStackConfigInputs(false); // enable
       document.getElementById('btn-load').disabled = false;
       showMsg('File parsed. Click "Load Config" to initialise the stack.', true);
     } catch (e) {
       _configJson = null;
       document.getElementById('btn-load').disabled = true;
-      showMsg('ERROR: Could not parse JSON \u2013 ' + e.message);
+      setStackConfigInputs(true); // disable
+      showMsg('ERROR: Could not parse JSON:' + e.message);
     }
   };
   reader.readAsText(file);
@@ -46,9 +53,17 @@ function onFileSelected(input) {
 function loadConfig() {
   if (!_configJson) { showMsg('No config file loaded.'); return; }
   setButtons(false, false, false, false);
-  showMsg('Loading config\u2026', true);
+  showMsg('Loading config:', true);
 
-  apiPost('/api/load', _configJson, function (data, err) {
+  // Merge UI field values into the config as stack_config before posting
+  var payload = JSON.parse(JSON.stringify(_configJson)); // deep copy
+  payload.stack_config = {
+    tz: parseInt(document.getElementById('cfg-tz').value, 10),
+    name: document.getElementById('cfg-name').value,
+    log_level: parseInt(document.getElementById('cfg-loglevel').value, 10)
+  };
+
+  apiPost('/api/load', payload, function (data, err) {
     if (err || !data || data.status !== 'ok') {
       showMsg('ERROR: ' + (data && data.message ? data.message : err));
       setButtons(!!_configJson, false, false, false);
@@ -57,17 +72,23 @@ function loadConfig() {
     }
     _loopStructure = data.loops || [];
     buildTables(_loopStructure);
+    // Reflect the confirmed stack_config back from the server
+    var sc = data.stack_config;
+    document.getElementById('cfg-tz').value = sc['tz'];
+    document.getElementById('cfg-name').value = sc['name'];
+    document.getElementById('cfg-loglevel').value = sc['log_level'];
     setBadge('loaded');
     showMsg('Config loaded. Click "Start FMLC" to begin.', true);
     document.getElementById('btn-load').disabled = false;
     document.getElementById('btn-start').disabled = false;
     document.getElementById('btn-stop').disabled = true;
     document.getElementById('btn-unload').disabled = false;
+    setStackConfigInputs(true); // stack already created; changes have no effect
   });
 }
 
 function startFmlc() {
-  showMsg('Starting FMLC\u2026', true);
+  showMsg('Starting FMLC:', true);
   setButtons(false, false, false, false);
 
   apiPost('/api/start', {}, function (data, err) {
@@ -83,11 +104,12 @@ function startFmlc() {
     document.getElementById('btn-start').disabled = true;
     document.getElementById('btn-stop').disabled = false;
     document.getElementById('btn-unload').disabled = true;
+    setStackConfigInputs(true); // lock while running
   });
 }
 
 function stopFmlc() {
-  showMsg('Stopping FMLC\u2026', true);
+  showMsg('Stopping FMLC:', true);
   setButtons(false, false, false, false);
 
   apiPost('/api/stop', {}, function (data, err) {
@@ -103,11 +125,12 @@ function stopFmlc() {
     document.getElementById('btn-start').disabled = !(_loopStructure.length > 0 && _configJson !== null);
     document.getElementById('btn-stop').disabled = true;
     document.getElementById('btn-unload').disabled = false;
+    setStackConfigInputs(true); // stack still in memory; changes have no effect
   });
 }
 
 function unloadFmlc() {
-  showMsg('Unloading FMLC\u2026', true);
+  showMsg('Unloading FMLC:', true);
   setButtons(false, false, false, false);
 
   apiPost('/api/unload', {}, function (data, err) {
@@ -121,6 +144,8 @@ function unloadFmlc() {
     _loopStructure = [];
     var container = document.getElementById('loop-tables');
     container.innerHTML = '<p style="color:#888; font-size:13px;">Load a config file to display the control loop tables.</p>';
+    setStackConfigInputs(true); // disable until next config is loaded
+    clearLogs();
     setBadge('idle');
     showMsg('FMLC unloaded. Select a config file and click "Load Config" to start fresh.', true);
     // Only Load Config can be re-enabled (if a file is already selected)
@@ -152,7 +177,33 @@ function pollStatus() {
       var info = modules[name];
       updateCell('log-' + safeCellId(name), info.last_log || '');
       updateCell('exec-' + safeCellId(name), info.last_exec || '');
+      updateCell('dur-' + safeCellId(name), (info.last_duration !== undefined && info.last_duration !== -1) ? info.last_duration + ' s' : '-');
     }
+  });
+  apiGet('/api/logs', function (data, err) {
+    if (err || !data) { return; }
+    var lines = data.lines || [];
+    // Last log line on main page
+    var lastEl = document.getElementById('last-log');
+    if (lastEl && lines.length) { lastEl.textContent = lines[lines.length - 1]; }
+    // Full log on log tab
+    var el = document.getElementById('log-output');
+    if (!el) { return; }
+    var text = lines.join('\n');
+    if (el.textContent !== text) {
+      var atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 2;
+      el.textContent = text;
+      if (atBottom) { el.scrollTop = el.scrollHeight; } // auto-scroll only when at bottom
+    }
+  });
+}
+
+function clearLogs() {
+  apiPost('/api/logs/clear', {}, function () {
+    var el = document.getElementById('log-output');
+    if (el) { el.textContent = ''; }
+    var lastEl = document.getElementById('last-log');
+    if (lastEl) { lastEl.textContent = ''; }
   });
 }
 
@@ -181,17 +232,20 @@ function syncButtonsFromStatus(status) {
     btnStart.disabled = true;
     btnStop.disabled = false;
     btnUnload.disabled = true; // must stop before unloading
+    setStackConfigInputs(true); // locked while running
   } else if (status === 'stopped' || status === 'loaded') {
     btnLoad.disabled = !hasFile;
     btnStart.disabled = !hasStack;
     btnStop.disabled = true;
     btnUnload.disabled = !hasStack;
+    setStackConfigInputs(true); // stack exists; changes have no effect until next Load Config
   } else {
-    // idle or error
+    // idle or error: editable whenever a file has been selected
     btnLoad.disabled = !hasFile;
     btnStart.disabled = true;
     btnStop.disabled = true;
     btnUnload.disabled = true;
+    setStackConfigInputs(!hasFile);
   }
 }
 
@@ -207,9 +261,9 @@ function buildTables(loops) {
   for (var i = 0; i < loops.length; i++) {
     var loop = loops[i];
     var section = document.createElement('div');
-    section.className = 'loop-section';
+    section.className = 'panel';
 
-    var heading = document.createElement('h3');
+    var heading = document.createElement('h2');
     heading.textContent = 'Loop: ' + loop.name + ' (' + loop.sampletime + ' s)';
     section.appendChild(heading);
 
@@ -218,7 +272,7 @@ function buildTables(loops) {
     // Header row
     var thead = table.createTHead();
     var hrow = thead.insertRow();
-    ['Module', 'Last Log Message', 'Last Execution Time'].forEach(function (col) {
+    ['Module', 'Last Log Message', 'Last Execution Time', 'Duration'].forEach(function (col) {
       var th = document.createElement('th');
       th.textContent = col;
       hrow.appendChild(th);
@@ -237,12 +291,17 @@ function buildTables(loops) {
       var tdLog = row.insertCell();
       tdLog.id = 'log-' + safeCellId(modName);
       tdLog.className = 'cell-log';
-      tdLog.textContent = '\u2014'; // em-dash placeholder
+      tdLog.textContent = '-';
 
       var tdExec = row.insertCell();
       tdExec.id = 'exec-' + safeCellId(modName);
       tdExec.className = 'cell-exec';
-      tdExec.textContent = '\u2014';
+      tdExec.textContent = '-';
+
+      var tdDur = row.insertCell();
+      tdDur.id = 'dur-' + safeCellId(modName);
+      tdDur.className = 'cell-exec';
+      tdDur.textContent = '-';
     }
 
     section.appendChild(table);
@@ -252,6 +311,13 @@ function buildTables(loops) {
 
 function safeCellId(name) {
   return name.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+// Enable or disable all stack config input fields.
+function setStackConfigInputs(disabled) {
+  document.getElementById('cfg-tz').disabled = disabled;
+  document.getElementById('cfg-name').disabled = disabled;
+  document.getElementById('cfg-loglevel').disabled = disabled;
 }
 
 function setButtons(load, start, stop, unload) {

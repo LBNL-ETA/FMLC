@@ -57,20 +57,30 @@ Single-page web UI for the FMLC controller stack interface.
     #status-badge.stopped { background: #e67e22; }
     #status-badge.error { background: #c0392b; }
 
+    /* ---- Stack config inputs ---- */
+    .cfg-input { padding: 4px 6px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px; }
+    .cfg-input:disabled { background: #f0f0f0; color: #aaa; }
+    .cfg-input-sm { width: 52px; }
+    .cfg-input-md { width: 120px; }
+
     /* ---- Misc ---- */
     #msg-line { font-size: 12px; color: #c0392b; min-height: 16px; margin-top: 4px; }
     #msg-line.ok { color: #27ae60; }
 
     /* ---- Loop tables ---- */
     #loop-tables { width: 100%; max-width: 900px; }
-    .loop-section { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
-    .loop-section h3 { font-size: 13px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { text-align: left; padding: 6px 10px; border: 1px solid #ddd; }
     th { background: #ecf0f1; font-weight: bold; color: #34495e; }
     tr:nth-child(even) td { background: #fafafa; }
     .cell-log { word-break: break-word; max-width: 400px; }
     .cell-exec { white-space: nowrap; min-width: 140px; }
+
+    /* ---- Last log line (main page) ---- */
+    #last-log { font-size: 12px; font-family: monospace; color: #555; min-height: 16px; word-break: break-all; }
+
+    /* ---- Log output (log tab) ---- */
+    #log-output { width: 100%; font-family: monospace; font-size: 13px; white-space: pre-wrap; overflow-y: auto; height: calc(100vh - 120px); padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -79,7 +89,7 @@ Single-page web UI for the FMLC controller stack interface.
   <h1>FMLC Web Interface</h1>
   <ul>
     <li><a href="#" class="active" onclick="showPage('main', this); return false;">Control Stack</a></li>
-    <!-- Future tabs: <li><a href="#" onclick="showPage('logs', this); return false;">Logs</a></li> -->
+    <li><a href="#" onclick="showPage('logs', this); return false;">Log FMLC</a></li>
   </ul>
 </nav>
 
@@ -95,6 +105,15 @@ Single-page web UI for the FMLC controller stack interface.
     </div>
 
     <div class="row">
+      <label for="cfg-tz">Time Zone:</label>
+      <input type="number" id="cfg-tz" class="cfg-input cfg-input-sm" value="-8" min="-12" max="14" disabled>
+      <label for="cfg-name">Zone Name:</label>
+      <input type="text" id="cfg-name" class="cfg-input cfg-input-md" value="FMLCWebUI" disabled>
+      <label for="cfg-loglevel">Log Level:</label>
+      <input type="number" id="cfg-loglevel" class="cfg-input cfg-input-sm" value="3" min="1" max="5" disabled>
+    </div>
+
+    <div class="row">
       <button class="primary" id="btn-load" onclick="loadConfig()" disabled>Load Config</button>
       <button class="success" id="btn-start" onclick="startFmlc()" disabled>Start FMLC</button>
       <button class="danger" id="btn-stop" onclick="stopFmlc()" disabled>Stop FMLC</button>
@@ -105,6 +124,12 @@ Single-page web UI for the FMLC controller stack interface.
     <div id="msg-line"></div>
   </div>
 
+  <!-- Latest log line -->
+  <div class="panel">
+    <h2>Last FMLC Log</h2>
+    <div id="last-log">Last FMLC log message will appear here. Set the log level higher to reduce verbosity.</div>
+  </div>
+
   <!-- Loop tables populated dynamically by buildTables() in app.js -->
   <div id="loop-tables">
     <p style="color:#888; font-size:13px;">Load a config file to display the control loop tables.</p>
@@ -112,7 +137,15 @@ Single-page web UI for the FMLC controller stack interface.
 
 </div><!-- end page-main -->
 
-<!-- Future pages: <div class="page" id="page-logs"> ... </div> -->
+<!-- Page: Log FMLC -->
+<div class="page" id="page-logs">
+  <div style="width:100%; max-width:900px; display:flex; flex-direction:column; flex:1;">
+    <div style="margin-bottom:8px;">
+      <button onclick="clearLogs()" style="font-size:12px; padding:4px 10px;">Clear</button>
+    </div>
+    <div id="log-output"></div>
+  </div>
+</div>
 
 <script src="/static/app.js"></script>
 </body>
