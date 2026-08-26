@@ -107,7 +107,7 @@ class controller_stack:
                  log_level=logging.WARNING,
                  log_add_ts=True,
                  log_clear_period=24*60*60,
-                 log_dump_period=1*60*60,
+                 log_dump_period=9999*60*60,  # disabled by default
                  log_refresh_period=60,
                  log_path='./log',
                  log_keys=None,
@@ -152,7 +152,7 @@ class controller_stack:
         log_level (logging): Default level for logging when ``debug`` == ``False``.
         log_add_ts (bool): Flag to add timestamp to logname. Default is ``True``.
         log_clear_period (float): Seconds between clearing in-memory logs. Default 86400 (24 h).
-        log_dump_period (float): Seconds between dumping logs to csv. Default 3600 (1 h).
+        log_dump_period (float): Seconds between dumping logs to csv. Default 9999 h (disabled).
         log_refresh_period (float): Seconds between refreshing device state from DB. Default 60.
         log_path (str): Path for csv log files. Default './log'.
         log_keys (list): Keys to include in logs. Default ['input', 'output', 'log'].

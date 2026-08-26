@@ -32,7 +32,8 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     package_data={'': ['*.txt', '*.md'],
                   'fmlc': ['python_db/*.py'],
-                  'fmlc.interface': ['static/*', 'example_config.json']},
+                  'fmlc.interface': ['static/*', 'example_config.json'],
+                  'doc': ['*.md', '*.jpg']},
     python_requires=">=3.10",
     install_requires= install_requires
 )
