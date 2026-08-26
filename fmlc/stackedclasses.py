@@ -111,7 +111,7 @@ class controller_stack:
                  log_refresh_period=60,
                  log_path='./log',
                  log_keys=None,
-                 align_ts=300,
+                 align_ts=None,
                  offset_query=0):
         """
         Initialize the controller stack object.
@@ -157,7 +157,7 @@ class controller_stack:
         log_path (str): Path for csv log files. Default './log'.
         log_keys (list): Keys to include in logs. Default ['input', 'output', 'log'].
         align_ts (float): Align query_control calls to even multiples of this interval in
-            seconds. Default 300 (5 minutes). Set to None to disable alignment.
+            seconds. Default None (disabled).
         offset_query (float): Extra seconds added after the alignment boundary before
             querying. Default 0.
         """
