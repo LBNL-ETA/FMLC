@@ -23,7 +23,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 from fmlc.stackedclasses import controller_stack
-from fmlc.utility import LOG_LEVEL_MAP, module_status, resolve_config
+from fmlc.utility import LOG_LEVEL_MAP, module_io, module_status, resolve_config
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / 'static'
@@ -83,16 +83,27 @@ class _UILogHandler(logging.Handler):
 
 _ui_log_handler = _UILogHandler()
 logging.getLogger().addHandler(_ui_log_handler)
+logging.getLogger(__name__).setLevel(logging.DEBUG)
+logging.getLogger('__main__').setLevel(logging.DEBUG)
 
 def _fmlc_loop() -> None:
     """Daemon thread: calls query_control() every _LOOP_TIMESTEP seconds while _running."""
     log.info('FMLC background loop started.')
+    with _lock:
+        s = _stack
+    if s is not None and s.align_ts:
+        now = time.time()
+        sleep_seconds = -now % s.align_ts + s.offset_query
+        log.info('Aligning to %ss boundary; sleeping %.1fs.', s.align_ts, sleep_seconds)
+        time.sleep(sleep_seconds)
     while _running:
         try:
             with _lock:
                 s = _stack
             if s is not None:
-                s.query_control(time.time())
+                now = time.time()
+                t = (now - (now % s.align_ts)) if s.align_ts else now
+                s.query_control(t)
         except Exception as exc:
             log.warning('Error in FMLC loop: %s', exc)
         time.sleep(_LOOP_TIMESTEP)
@@ -207,6 +218,7 @@ def api_load():
         'tz': stack_kwargs['tz'],
         'name': stack_kwargs['name'],
         'log_level': inv_log_map[stack_kwargs['log_level']],
+        'align_ts': new_stack.align_ts,
     }
     return jsonify({'status': 'ok', 'loops': loops, 'stack_config': sc_response})
 
@@ -292,6 +304,27 @@ def api_status():
             log.warning('Error reading module status: %s', exc)
 
     return jsonify({'fmlc_status': status, 'modules': modules})
+
+@app.route('/api/module_log', methods=['GET'])
+def api_module_log():
+    """Return inputs, log message, and outputs for one controller by name."""
+    name = request.args.get('name', '')
+
+    with _lock:
+        s = _stack
+
+    if s is None:
+        return jsonify({'status': 'error', 'message': 'No stack loaded.'}), 400
+    if name not in s.controller:
+        return jsonify({'status': 'error', 'message': f'Unknown controller: {name}'}), 400
+
+    try:
+        data = module_io(s, name)
+    except Exception as exc:
+        log.warning('Error reading module IO for %s: %s', name, exc)
+        return jsonify({'status': 'error', 'message': str(exc)}), 500
+
+    return jsonify({'status': 'ok', 'data': data})
 
 @app.route('/api/logs', methods=['GET'])
 def api_logs():

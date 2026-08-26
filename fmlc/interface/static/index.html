@@ -81,6 +81,16 @@ Single-page web UI for the FMLC controller stack interface.
 
     /* ---- Log output (log tab) ---- */
     #log-output { width: 100%; font-family: monospace; font-size: 13px; white-space: pre-wrap; overflow-y: auto; height: calc(100vh - 120px); padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
+
+    /* ---- Module Log tab ---- */
+    #modlog-wrap { width: 100%; max-width: 900px; }
+    #modlog-selector { padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
+    #modlog-trunc { width: 64px; padding: 4px 6px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
+    .modlog-val-trunc { display: inline; }
+    .modlog-val-full { display: none; }
+    .modlog-toggle { font-size: 11px; color: #2980b9; cursor: pointer; margin-left: 4px; white-space: nowrap; }
+    .modlog-toggle:hover { text-decoration: underline; }
+    .cell-val { font-family: monospace; word-break: break-all; }
   </style>
 </head>
 <body>
@@ -89,7 +99,8 @@ Single-page web UI for the FMLC controller stack interface.
   <h1>FMLC Web Interface</h1>
   <ul>
     <li><a href="#" class="active" onclick="showPage('main', this); return false;">Control Stack</a></li>
-    <li><a href="#" onclick="showPage('logs', this); return false;">Log FMLC</a></li>
+    <li><a href="#" onclick="showPage('logs', this); return false;">FMLC Log</a></li>
+    <li><a href="#" onclick="showPage('modlog', this); return false;">Module Log</a></li>
   </ul>
 </nav>
 
@@ -111,6 +122,8 @@ Single-page web UI for the FMLC controller stack interface.
       <input type="text" id="cfg-name" class="cfg-input cfg-input-md" value="FMLCWebUI" disabled>
       <label for="cfg-loglevel">Log Level:</label>
       <input type="number" id="cfg-loglevel" class="cfg-input cfg-input-sm" value="3" min="1" max="5" disabled>
+      <label for="cfg-align">Align Timestep (s):</label>
+      <input type="number" id="cfg-align" class="cfg-input cfg-input-sm" value="300" min="0" disabled>
     </div>
 
     <div class="row">
@@ -137,7 +150,7 @@ Single-page web UI for the FMLC controller stack interface.
 
 </div><!-- end page-main -->
 
-<!-- Page: Log FMLC -->
+<!-- Page: FMLC Log -->
 <div class="page" id="page-logs">
   <div style="width:100%; max-width:900px; display:flex; flex-direction:column; flex:1;">
     <div style="margin-bottom:8px;">
@@ -146,6 +159,60 @@ Single-page web UI for the FMLC controller stack interface.
     <div id="log-output"></div>
   </div>
 </div>
+
+<!-- Page: Module Log -->
+<div class="page" id="page-modlog">
+  <div id="modlog-wrap">
+
+    <div class="panel">
+      <div class="row">
+        <label for="modlog-selector">Controller:</label>
+        <select id="modlog-selector" onchange="onModlogSelect()">
+          <option value="">Select Controller</option>
+        </select>
+        <label for="modlog-trunc" style="margin-left:16px;">Truncate at:</label>
+        <input type="number" id="modlog-trunc" value="120" min="1">
+        <label>chars</label>
+      </div>
+    </div>
+
+    <!-- Inputs table -->
+    <div class="panel" id="modlog-inputs-panel">
+      <h2>Inputs</h2>
+      <table id="modlog-inputs-table">
+        <thead><tr><th>Name</th><th>Last Value</th></tr></thead>
+        <tbody id="modlog-inputs-body">
+          <tr><td colspan="2" style="color:#aaa;">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Log / status table -->
+    <div class="panel" id="modlog-log-panel">
+      <h2>Log</h2>
+      <table>
+        <thead><tr><th>Field</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Log Message</td><td id="modlog-log-val">—</td></tr>
+          <tr><td>Last Execution</td><td id="modlog-exec-val">—</td></tr>
+          <tr><td>Duration</td><td id="modlog-dur-val">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Outputs table -->
+    <div class="panel" id="modlog-outputs-panel">
+      <h2>Outputs</h2>
+      <table id="modlog-outputs-table">
+        <thead><tr><th>Name</th><th>Last Value</th></tr></thead>
+        <tbody id="modlog-outputs-body">
+          <tr><td colspan="2" style="color:#aaa;">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div><!-- end page-modlog -->
 
 <script src="/static/app.js"></script>
 </body>

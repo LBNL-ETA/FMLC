@@ -64,6 +64,12 @@ def resolve_config(config: dict) -> tuple:
     return controller, mapping, stack_kwargs
 
 
+def _fmt_ts(last_ts, tz):
+    '''Format a Unix timestamp as a local datetime string adjusted by tz offset in hours.'''
+    local_dt = dtm.datetime.utcfromtimestamp(last_ts) + dtm.timedelta(hours=tz)
+    return local_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+
 def module_status(stack):
     '''Return per-module last log message, last execution time, and duration, read from PythonDB.'''
     stack.read_from_db()
@@ -81,8 +87,7 @@ def module_status(stack):
             last_ts = float(last_ts)
         except (TypeError, ValueError):
             last_ts = 0
-        last_exec = (dtm.datetime.fromtimestamp(last_ts).strftime('%Y-%m-%d %H:%M:%S')
-                     if last_ts else 'Never')
+        last_exec = _fmt_ts(last_ts, stack.tz) if last_ts else 'Never'
 
         raw_dur = db[name + '_durationfmlc'] if name + '_durationfmlc' in db else -1
         try:
@@ -93,6 +98,38 @@ def module_status(stack):
         result[name] = {
             'last_log': last_log, 'last_exec': last_exec, 'last_duration': last_duration}
     return result
+
+
+def module_io(stack, name):
+    '''Return inputs, log, execution time, duration and outputs for one controller from PythonDB.'''
+    stack.read_from_db()
+    db = stack.data_db
+
+    last_log = db[name + '_logfmlc'] if name + '_logfmlc' in db else ''
+    if isinstance(last_log, list):
+        last_log = last_log[0] if last_log else ''
+    last_log = str(last_log)
+
+    last_ts = db[name + '_lastfmlc'] if name + '_lastfmlc' in db else 0
+    try:
+        last_ts = float(last_ts)
+    except (TypeError, ValueError):
+        last_ts = 0
+    last_exec = _fmt_ts(last_ts, stack.tz) if last_ts else 'Never'
+
+    raw_dur = db[name + '_durationfmlc'] if name + '_durationfmlc' in db else -1
+    try:
+        last_duration = round(float(raw_dur), 1)
+    except (TypeError, ValueError):
+        last_duration = -1
+
+    inputs = {k: db[name + '_' + k] if name + '_' + k in db else None
+              for k in stack.controller[name]['inputs']}
+    outputs = {k: db[name + '_' + k] if name + '_' + k in db else None
+               for k in stack.controller[name]['outputs']}
+
+    return {'inputs': inputs, 'log': last_log, 'last_exec': last_exec,
+            'last_duration': last_duration, 'outputs': outputs}
 
 
 def check_error(logs, printing=False, done_msgs=DONE_MSGS):

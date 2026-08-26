@@ -115,7 +115,9 @@ class controller_stack:
                  timestep=0.25,
                  log_config=None,
                  log_level=logging.WARNING,
-                 log_add_ts=True):
+                 log_add_ts=True,
+                 align_ts=300,
+                 offset_query=0):
         """
         Initialize the controller stack object.
 
@@ -157,6 +159,10 @@ class controller_stack:
             ``refresh_period``, and ``log_path``.
         log_level (logging): Default level for logging when ``debug`` == ``False``.
         log_add_ts (bool): Flag to add timestamp to logname. Default is ``True``.
+        align_ts (float): Align query_control calls to even multiples of this interval in
+            seconds. Default 300 (5 minutes). Set to None to disable alignment.
+        offset_query (float): Extra seconds added after the alignment boundary before
+            querying. Default 0.
         """
         # Setup
         self.controller = controller
@@ -178,6 +184,8 @@ class controller_stack:
         self.log_path = log_config['log_path']
         self.log_level = log_level
         self.log_add_ts = log_add_ts
+        self.align_ts = align_ts
+        self.offset_query = offset_query
 
         self.last_dump_time = now
         self.last_clear_time = now
@@ -488,6 +496,11 @@ class controller_stack:
     def run_query_control_for(self, seconds=None, timestep=None, max_iter=None, shutdown=True):
         """
         Calls query control every timestep for seconds seconds either parallely or serially.
+
+        seconds (float): Total wall-clock duration to run. Runs forever if None.
+        timestep (float): Seconds between query_control calls. Defaults to stack_timestep.
+        max_iter (int): Max iterations per query_control call. None means unlimited.
+        shutdown (bool): Shut down the stack after the loop exits. Default True.
         """
         if not timestep:
             timestep = self.stack_timestep
@@ -501,15 +514,23 @@ class controller_stack:
         ts = {'main': self.stack_timestep}
         trigger_test = triggering(ts)
 
+        if self.align_ts:
+            now = time.time()
+            sleep_seconds = -now % self.align_ts + self.offset_query
+            self.logger.info('Aligning to %ss boundary; sleeping %.1fs.',
+                             self.align_ts, sleep_seconds)
+            time.sleep(sleep_seconds)
+
         now = time.time()
         end_time = now + seconds + self.stack_timestep * 2
         while now < end_time:
             now = time.time()
             if now >= trigger_test.trigger['main']:
+                t = (now - (now % self.align_ts)) if self.align_ts else now
                 if self.parallel:
-                    self.executor.submit(self.query_control, now, max_iter)
+                    self.executor.submit(self.query_control, t, max_iter)
                 else:
-                    self.query_control(now, max_iter)
+                    self.query_control(t, max_iter)
                 trigger_test.refresh_trigger('main', now)
 
         if self.parallel:

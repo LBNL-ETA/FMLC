@@ -8,9 +8,11 @@
 
 'use strict';
 
-var _configJson = null; // parsed JSON from the selected file
-var _loopStructure = []; // loop descriptors from /api/load
-var _pollTimer = null; // setInterval handle
+var POLL_INTERVAL_MS = 2000; // ms between UI status/log/module-log polls
+
+var _configJson = null;    // parsed JSON from the selected file
+var _loopStructure = [];   // loop descriptors from /api/load
+var _pollTimer = null;     // setInterval handle
 
 function showPage(name, link) {
   var pages = document.querySelectorAll('.page');
@@ -37,6 +39,7 @@ function onFileSelected(input) {
       if ('tz' in sc) { document.getElementById('cfg-tz').value = sc['tz']; }
       if ('name' in sc) { document.getElementById('cfg-name').value = sc['name']; }
       if ('log_level' in sc) { document.getElementById('cfg-loglevel').value = sc['log_level']; }
+      if ('align_ts' in sc) { document.getElementById('cfg-align').value = sc['align_ts']; }
       setStackConfigInputs(false); // enable
       document.getElementById('btn-load').disabled = false;
       showMsg('File parsed. Click "Load Config" to initialise the stack.', true);
@@ -60,7 +63,8 @@ function loadConfig() {
   payload.stack_config = {
     tz: parseInt(document.getElementById('cfg-tz').value, 10),
     name: document.getElementById('cfg-name').value,
-    log_level: parseInt(document.getElementById('cfg-loglevel').value, 10)
+    log_level: parseInt(document.getElementById('cfg-loglevel').value, 10),
+    align_ts: parseFloat(document.getElementById('cfg-align').value) || null
   };
 
   apiPost('/api/load', payload, function (data, err) {
@@ -72,11 +76,13 @@ function loadConfig() {
     }
     _loopStructure = data.loops || [];
     buildTables(_loopStructure);
+    buildModlogDropdown(_loopStructure);
     // Reflect the confirmed stack_config back from the server
     var sc = data.stack_config;
     document.getElementById('cfg-tz').value = sc['tz'];
     document.getElementById('cfg-name').value = sc['name'];
     document.getElementById('cfg-loglevel').value = sc['log_level'];
+    document.getElementById('cfg-align').value = sc['align_ts'] !== null ? sc['align_ts'] : '';
     setBadge('loaded');
     showMsg('Config loaded. Click "Start FMLC" to begin.', true);
     document.getElementById('btn-load').disabled = false;
@@ -156,8 +162,6 @@ function unloadFmlc() {
   });
 }
 
-var POLL_INTERVAL_MS = 2000;
-
 function startPolling() {
   if (_pollTimer !== null) { return; }
   _pollTimer = setInterval(pollStatus, POLL_INTERVAL_MS);
@@ -180,6 +184,7 @@ function pollStatus() {
       updateCell('dur-' + safeCellId(name), (info.last_duration !== undefined && info.last_duration !== -1) ? info.last_duration + ' s' : '-');
     }
   });
+  pollModuleLog();
   apiGet('/api/logs', function (data, err) {
     if (err || !data) { return; }
     var lines = data.lines || [];
@@ -318,6 +323,7 @@ function setStackConfigInputs(disabled) {
   document.getElementById('cfg-tz').disabled = disabled;
   document.getElementById('cfg-name').disabled = disabled;
   document.getElementById('cfg-loglevel').disabled = disabled;
+  document.getElementById('cfg-align').disabled = disabled;
 }
 
 function setButtons(load, start, stop, unload) {
@@ -366,6 +372,152 @@ function apiGet(url, callback) {
   };
   xhr.onerror = function () { callback(null, 'Network error'); };
   xhr.send();
+}
+
+// ---- Module Log tab ----
+
+function getTruncLen() {
+  var el = document.getElementById('modlog-trunc');
+  var v = el ? parseInt(el.value, 10) : 120;
+  return (isNaN(v) || v < 1) ? 120 : v;
+}
+
+function buildModlogDropdown(loops) {
+  var sel = document.getElementById('modlog-selector');
+  sel.innerHTML = '<option value="">Select Controller</option>';
+  for (var i = 0; i < loops.length; i++) {
+    var mods = loops[i].modules || [];
+    for (var j = 0; j < mods.length; j++) {
+      var opt = document.createElement('option');
+      opt.value = mods[j];
+      opt.textContent = mods[j];
+      sel.appendChild(opt);
+    }
+  }
+  clearModlogPanels();
+}
+
+function onModlogSelect() {
+  var name = document.getElementById('modlog-selector').value;
+  if (!name) { clearModlogPanels(); return; }
+  fetchModuleLog(name);
+}
+
+function fetchModuleLog(name) {
+  apiGet('/api/module_log?name=' + encodeURIComponent(name), function (data, err) {
+    if (err || !data || data.status !== 'ok') { clearModlogPanels(); return; }
+    renderModlog(data.data);
+  });
+}
+
+function clearModlogPanels() {
+  var empty = '<tr><td colspan="2" style="color:#aaa;">—</td></tr>';
+  document.getElementById('modlog-inputs-body').innerHTML = empty;
+  document.getElementById('modlog-outputs-body').innerHTML = empty;
+  document.getElementById('modlog-log-val').textContent = '—';
+  document.getElementById('modlog-exec-val').textContent = '—';
+  document.getElementById('modlog-dur-val').textContent = '—';
+}
+
+function renderModlog(data) {
+  renderKVTable('modlog-inputs-body', data.inputs || {});
+  renderKVTable('modlog-outputs-body', data.outputs || {});
+  document.getElementById('modlog-log-val').textContent = data.log || '—';
+  document.getElementById('modlog-exec-val').textContent = data.last_exec || '—';
+  var dur = data.last_duration;
+  document.getElementById('modlog-dur-val').textContent =
+    (dur !== undefined && dur !== -1) ? dur + ' s' : '—';
+}
+
+function makeTruncCell(valStr) {
+  var td = document.createElement('td');
+  td.className = 'cell-val';
+  var truncLen = getTruncLen();
+  if (valStr.length > truncLen) {
+    var trunc = document.createElement('span');
+    trunc.className = 'modlog-val-trunc';
+    trunc.textContent = valStr.slice(0, truncLen) + '…';
+
+    var full = document.createElement('span');
+    full.className = 'modlog-val-full';
+    full.textContent = valStr;
+
+    var toggle = document.createElement('span');
+    toggle.className = 'modlog-toggle';
+    toggle.textContent = '[show more]';
+    (function (tr, fu, tg) {
+      tg.onclick = function () {
+        if (!fu.style.display || fu.style.display === 'none') {
+          tr.style.display = 'none';
+          fu.style.display = 'inline';
+          tg.textContent = '[show less]';
+        } else {
+          fu.style.display = 'none';
+          tr.style.display = 'inline';
+          tg.textContent = '[show more]';
+        }
+      };
+    }(trunc, full, toggle));
+
+    td.appendChild(trunc);
+    td.appendChild(full);
+    td.appendChild(toggle);
+  } else {
+    td.textContent = valStr;
+  }
+  return td;
+}
+
+function renderKVTable(tbodyId, kvObj) {
+  var tbody = document.getElementById(tbodyId);
+  var keys = Object.keys(kvObj);
+  if (!keys.length) {
+    tbody.innerHTML = '<tr><td colspan="2" style="color:#aaa;">—</td></tr>';
+    return;
+  }
+
+  // Rebuild only when the key set changes (different number of rows or different names)
+  var rows = tbody.rows;
+  var needsRebuild = (rows.length !== keys.length);
+  if (!needsRebuild) {
+    for (var i = 0; i < keys.length; i++) {
+      if (!rows[i] || rows[i].cells[0].textContent !== keys[i]) { needsRebuild = true; break; }
+    }
+  }
+  if (needsRebuild) {
+    tbody.innerHTML = '';
+    for (var j = 0; j < keys.length; j++) {
+      var row = tbody.insertRow();
+      row.insertCell().textContent = keys[j];
+      var raw = kvObj[keys[j]];
+      var valStr = (raw === null || raw === undefined) ? 'null' : String(raw);
+      row.appendChild(makeTruncCell(valStr));
+    }
+    return;
+  }
+
+  // Key set unchanged: update only cells whose value has changed, preserving expanded state
+  for (var k = 0; k < keys.length; k++) {
+    var rawVal = kvObj[keys[k]];
+    var newStr = (rawVal === null || rawVal === undefined) ? 'null' : String(rawVal);
+    var cell = rows[k].cells[1];
+    // Read current displayed value from whichever span is active (or plain text)
+    var fullSpan = cell.querySelector('.modlog-val-full');
+    var truncSpan = cell.querySelector('.modlog-val-trunc');
+    var currentStr = fullSpan ? fullSpan.textContent : (truncSpan ? (truncSpan.textContent.slice(0, -1)) : cell.textContent);
+    if (currentStr === newStr) { continue; } // nothing changed, leave DOM intact
+    // Value changed: replace the cell content, reset to truncated view
+    var newCell = makeTruncCell(newStr);
+    rows[k].replaceChild(newCell, cell);
+  }
+}
+
+// Only fetch when Module Log tab is active and a controller is selected
+function pollModuleLog() {
+  var page = document.getElementById('page-modlog');
+  if (!page || !page.classList.contains('active')) { return; }
+  var name = document.getElementById('modlog-selector').value;
+  if (name) { fetchModuleLog(name); }
 }
 
 startPolling();
