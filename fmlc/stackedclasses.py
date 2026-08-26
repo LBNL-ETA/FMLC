@@ -9,7 +9,7 @@ Stackedclass module.
 """
 
 # pylint: disable=invalid-name, too-many-arguments, too-many-positional-arguments
-# pylint: disable=broad-except, too-many-instance-attributes
+# pylint: disable=broad-except, too-many-instance-attributes, too-many-locals
 
 import os
 import time
@@ -56,15 +56,6 @@ def log_to_db(name, ctrl, now, db_address):
     if 'ERROR' in e:
         print(f'An error occurred when writing "{name}" to internal PythonDB '
               f'database: {e}.')
-
-
-default_log_config = {
-    'clear_log_period': 24*60*60,
-    'dump_log_period': 1*60*60,
-    'refresh_period': 60,
-    'log_path': './log',
-    'log_keys': ['input', 'output', 'log']
-}
 
 def _test_do_control(log_level):
     _log = logging.getLogger(__name__)
@@ -113,9 +104,13 @@ class controller_stack:
                  now=None,
                  workers=os.cpu_count() * 5,
                  timestep=0.25,
-                 log_config=None,
                  log_level=logging.WARNING,
                  log_add_ts=True,
+                 log_clear_period=24*60*60,
+                 log_dump_period=1*60*60,
+                 log_refresh_period=60,
+                 log_path='./log',
+                 log_keys=None,
                  align_ts=300,
                  offset_query=0):
         """
@@ -154,11 +149,13 @@ class controller_stack:
         workers(int): Number of workers to be inputted to set up the ThreadPoolExecutor.
         timestep(float): Time the stack takes between checking if any controller
             computations need be done.
-        log_config(dict): Dictionary to configure log saving (logs stored in memory
-            will be cleared). Keys include ``clear_log_period``, ``dump_log_period``,
-            ``refresh_period``, and ``log_path``.
         log_level (logging): Default level for logging when ``debug`` == ``False``.
         log_add_ts (bool): Flag to add timestamp to logname. Default is ``True``.
+        log_clear_period (float): Seconds between clearing in-memory logs. Default 86400 (24 h).
+        log_dump_period (float): Seconds between dumping logs to csv. Default 3600 (1 h).
+        log_refresh_period (float): Seconds between refreshing device state from DB. Default 60.
+        log_path (str): Path for csv log files. Default './log'.
+        log_keys (list): Keys to include in logs. Default ['input', 'output', 'log'].
         align_ts (float): Align query_control calls to even multiples of this interval in
             seconds. Default 300 (5 minutes). Set to None to disable alignment.
         offset_query (float): Extra seconds added after the alignment boundary before
@@ -175,13 +172,13 @@ class controller_stack:
             now = time.time()
         self.workers = workers
         self.stack_timestep = timestep
-        if log_config is None:
-            log_config = copy_dict(default_log_config)
-        self.log_config = log_config
-        self.dump_log_period = log_config['dump_log_period']
-        self.clear_log_period = log_config['clear_log_period']
-        self.refresh_period = log_config['refresh_period']
-        self.log_path = log_config['log_path']
+        if log_keys is None:
+            log_keys = ['input', 'output', 'log']
+        self.dump_log_period = log_dump_period
+        self.clear_log_period = log_clear_period
+        self.refresh_period = log_refresh_period
+        self.log_path = log_path
+        self.log_keys = log_keys
         self.log_level = log_level
         self.log_add_ts = log_add_ts
         self.align_ts = align_ts

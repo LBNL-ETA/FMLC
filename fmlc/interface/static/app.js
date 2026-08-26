@@ -40,6 +40,14 @@ function onFileSelected(input) {
       if ('name' in sc) { document.getElementById('cfg-name').value = sc['name']; }
       if ('log_level' in sc) { document.getElementById('cfg-loglevel').value = sc['log_level']; }
       if ('align_ts' in sc) { document.getElementById('cfg-align').value = sc['align_ts']; }
+      if ('log_clear_period' in sc) { document.getElementById('cfg-log-clear').value = sc['log_clear_period'] / 3600; }
+      if ('log_dump_period' in sc) { document.getElementById('cfg-log-dump').value = sc['log_dump_period'] / 3600; }
+      if ('log_path' in sc) { document.getElementById('cfg-log-path').value = sc['log_path']; }
+      if ('log_keys' in sc) {
+        document.getElementById('cfg-key-input').checked = sc['log_keys'].indexOf('input') !== -1;
+        document.getElementById('cfg-key-output').checked = sc['log_keys'].indexOf('output') !== -1;
+        document.getElementById('cfg-key-log').checked = sc['log_keys'].indexOf('log') !== -1;
+      }
       setStackConfigInputs(false); // enable
       document.getElementById('btn-load').disabled = false;
       showMsg('File parsed. Click "Load Config" to initialise the stack.', true);
@@ -60,11 +68,19 @@ function loadConfig() {
 
   // Merge UI field values into the config as stack_config before posting
   var payload = JSON.parse(JSON.stringify(_configJson)); // deep copy
+  var logKeys = [];
+  if (document.getElementById('cfg-key-input').checked) { logKeys.push('input'); }
+  if (document.getElementById('cfg-key-output').checked) { logKeys.push('output'); }
+  if (document.getElementById('cfg-key-log').checked) { logKeys.push('log'); }
   payload.stack_config = {
     tz: parseInt(document.getElementById('cfg-tz').value, 10),
     name: document.getElementById('cfg-name').value,
     log_level: parseInt(document.getElementById('cfg-loglevel').value, 10),
-    align_ts: parseFloat(document.getElementById('cfg-align').value) || null
+    align_ts: parseFloat(document.getElementById('cfg-align').value) || null,
+    log_clear_period: parseInt(document.getElementById('cfg-log-clear').value, 10) * 3600,
+    log_dump_period: parseInt(document.getElementById('cfg-log-dump').value, 10) * 3600,
+    log_path: document.getElementById('cfg-log-path').value,
+    log_keys: logKeys
   };
 
   apiPost('/api/load', payload, function (data, err) {
@@ -83,6 +99,12 @@ function loadConfig() {
     document.getElementById('cfg-name').value = sc['name'];
     document.getElementById('cfg-loglevel').value = sc['log_level'];
     document.getElementById('cfg-align').value = sc['align_ts'] !== null ? sc['align_ts'] : '';
+    document.getElementById('cfg-log-clear').value = sc['log_clear_period'] / 3600;
+    document.getElementById('cfg-log-dump').value = sc['log_dump_period'] / 3600;
+    document.getElementById('cfg-log-path').value = sc['log_path'];
+    document.getElementById('cfg-key-input').checked = sc['log_keys'].indexOf('input') !== -1;
+    document.getElementById('cfg-key-output').checked = sc['log_keys'].indexOf('output') !== -1;
+    document.getElementById('cfg-key-log').checked = sc['log_keys'].indexOf('log') !== -1;
     setBadge('loaded');
     showMsg('Config loaded. Click "Start FMLC" to begin.', true);
     document.getElementById('btn-load').disabled = false;
@@ -324,6 +346,12 @@ function setStackConfigInputs(disabled) {
   document.getElementById('cfg-name').disabled = disabled;
   document.getElementById('cfg-loglevel').disabled = disabled;
   document.getElementById('cfg-align').disabled = disabled;
+  document.getElementById('cfg-log-clear').disabled = disabled;
+  document.getElementById('cfg-log-dump').disabled = disabled;
+  document.getElementById('cfg-log-path').disabled = disabled;
+  document.getElementById('cfg-key-input').disabled = disabled;
+  document.getElementById('cfg-key-output').disabled = disabled;
+  document.getElementById('cfg-key-log').disabled = disabled;
 }
 
 function setButtons(load, start, stop, unload) {

@@ -62,6 +62,8 @@ Single-page web UI for the FMLC controller stack interface.
     .cfg-input:disabled { background: #f0f0f0; color: #aaa; }
     .cfg-input-sm { width: 52px; }
     .cfg-input-md { width: 120px; }
+    .cfg-input-lg { width: 90px; }
+    .cfg-cb-label { font-weight: normal; display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
 
     /* ---- Misc ---- */
     #msg-line { font-size: 12px; color: #c0392b; min-height: 16px; margin-top: 4px; }
@@ -124,6 +126,20 @@ Single-page web UI for the FMLC controller stack interface.
       <input type="number" id="cfg-loglevel" class="cfg-input cfg-input-sm" value="3" min="1" max="5" disabled>
       <label for="cfg-align">Align Timestep (s):</label>
       <input type="number" id="cfg-align" class="cfg-input cfg-input-sm" value="300" min="0" disabled>
+    </div>
+
+    <div class="row">
+      <label>Log Config:</label>
+      <label for="cfg-log-clear">Clear Period (h):</label>
+      <input type="number" id="cfg-log-clear" class="cfg-input cfg-input-sm" value="24" min="1" disabled>
+      <label for="cfg-log-dump">Dump Period (h):</label>
+      <input type="number" id="cfg-log-dump" class="cfg-input cfg-input-sm" value="1" min="1" disabled>
+      <label for="cfg-log-path">Path:</label>
+      <input type="text" id="cfg-log-path" class="cfg-input cfg-input-lg" value="./log" disabled>
+      <label>Keys:</label>
+      <label class="cfg-cb-label"><input type="checkbox" id="cfg-key-input" checked disabled> input</label>
+      <label class="cfg-cb-label"><input type="checkbox" id="cfg-key-output" checked disabled> output</label>
+      <label class="cfg-cb-label"><input type="checkbox" id="cfg-key-log" checked disabled> log</label>
     </div>
 
     <div class="row">

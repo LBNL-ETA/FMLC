@@ -215,10 +215,14 @@ def api_load():
 
     inv_log_map = {v: k for k, v in LOG_LEVEL_MAP.items()}
     sc_response = {
-        'tz': stack_kwargs['tz'],
-        'name': stack_kwargs['name'],
-        'log_level': inv_log_map[stack_kwargs['log_level']],
+        'tz': new_stack.tz,
+        'name': new_stack.name,
+        'log_level': inv_log_map[new_stack.log_level],
         'align_ts': new_stack.align_ts,
+        'log_clear_period': new_stack.clear_log_period,
+        'log_dump_period': new_stack.dump_log_period,
+        'log_path': new_stack.log_path,
+        'log_keys': new_stack.log_keys,
     }
     return jsonify({'status': 'ok', 'loops': loops, 'stack_config': sc_response})
 
