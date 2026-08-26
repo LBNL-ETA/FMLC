@@ -295,10 +295,11 @@ def api_stop():
 
 @app.route('/api/status', methods=['GET'])
 def api_status():
-    """Return current FMLC status and per-module log/exec information."""
+    """Return current FMLC status, per-module log/exec information, and loop structure."""
     with _lock:
         s = _stack
         status = _fmlc_status
+        loops = _loop_structure or []
 
     modules = {}
     if s is not None:
@@ -307,7 +308,7 @@ def api_status():
         except Exception as exc:
             log.warning('Error reading module status: %s', exc)
 
-    return jsonify({'fmlc_status': status, 'modules': modules})
+    return jsonify({'fmlc_status': status, 'modules': modules, 'loops': loops})
 
 @app.route('/api/module_log', methods=['GET'])
 def api_module_log():

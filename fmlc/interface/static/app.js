@@ -13,6 +13,7 @@ var POLL_INTERVAL_MS = 2000; // ms between UI status/log/module-log polls
 var _configJson = null;    // parsed JSON from the selected file
 var _loopStructure = [];   // loop descriptors from /api/load
 var _pollTimer = null;     // setInterval handle
+var _hydrated = false;     // true once loop structure has been restored from server
 
 function showPage(name, link) {
   var pages = document.querySelectorAll('.page');
@@ -159,6 +160,7 @@ function unloadFmlc() {
     }
     // Reset all client-side stack state
     _loopStructure = [];
+    _hydrated = false;
     var container = document.getElementById('loop-tables');
     container.innerHTML = '<p style="color:#888; font-size:13px;">Load a config file to display the control loop tables.</p>';
     setStackConfigInputs(true); // disable until next config is loaded
@@ -185,6 +187,16 @@ function pollStatus() {
     if (badge && badge.textContent.toLowerCase() !== data.fmlc_status) {
       setBadge(data.fmlc_status);
     }
+
+    // Hydrate loop structure from server on reload if not already done this session
+    if (!_hydrated && data.loops && data.loops.length > 0) {
+      _loopStructure = data.loops;
+      buildTables(_loopStructure);
+      buildModlogDropdown(_loopStructure);
+      buildDvDropdown(_loopStructure);
+      _hydrated = true;
+    }
+
     syncButtonsFromStatus(data.fmlc_status);
     var modules = data.modules || {};
     for (var name in modules) {
@@ -242,8 +254,8 @@ function syncButtonsFromStatus(status) {
 
   // Load Config requires a file to have been parsed in this browser session.
   var hasFile = (_configJson !== null);
-  // Start/Unload require the stack to have been loaded in this session (tables present).
-  var hasStack = (hasFile && _loopStructure.length > 0);
+  // Start/Unload only require a stack to be present on the server (survives reload).
+  var hasStack = (_loopStructure.length > 0);
 
   if (status === 'running') {
     btnLoad.disabled = true; // cannot load a new config while running
