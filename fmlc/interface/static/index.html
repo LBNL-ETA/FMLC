@@ -88,6 +88,12 @@ Single-page web UI for the FMLC controller stack interface.
     #modlog-wrap { width: 100%; max-width: 900px; }
     #modlog-selector { padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
     #modlog-trunc { width: 64px; padding: 4px 6px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
+    /* ---- Data Viewer tab ---- */
+    #dv-wrap { width: 100%; max-width: 900px; }
+    #dv-selector { padding: 4px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 3px; }
+    #dv-status { font-size: 12px; color: #888; margin-top: 6px; min-height: 1.2em; }
+    .dv-cb-label { font-weight: normal; display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; font-size: 13px; }
+
     .modlog-val-trunc { display: inline; }
     .modlog-val-full { display: none; }
     .modlog-toggle { font-size: 11px; color: #2980b9; cursor: pointer; margin-left: 4px; white-space: nowrap; }
@@ -103,6 +109,7 @@ Single-page web UI for the FMLC controller stack interface.
     <li><a href="#" class="active" onclick="showPage('main', this); return false;">Control Stack</a></li>
     <li><a href="#" onclick="showPage('logs', this); return false;">FMLC Log</a></li>
     <li><a href="#" onclick="showPage('modlog', this); return false;">Module Log</a></li>
+    <li><a href="#" onclick="showPage('dataviewer', this); return false;">Data Viewer</a></li>
   </ul>
 </nav>
 
@@ -136,10 +143,6 @@ Single-page web UI for the FMLC controller stack interface.
       <input type="number" id="cfg-log-dump" class="cfg-input cfg-input-sm" value="1" min="1" disabled>
       <label for="cfg-log-path">Path:</label>
       <input type="text" id="cfg-log-path" class="cfg-input cfg-input-lg" value="./log" disabled>
-      <label>Keys:</label>
-      <label class="cfg-cb-label"><input type="checkbox" id="cfg-key-input" checked disabled> input</label>
-      <label class="cfg-cb-label"><input type="checkbox" id="cfg-key-output" checked disabled> output</label>
-      <label class="cfg-cb-label"><input type="checkbox" id="cfg-key-log" checked disabled> log</label>
     </div>
 
     <div class="row">
@@ -229,6 +232,60 @@ Single-page web UI for the FMLC controller stack interface.
 
   </div>
 </div><!-- end page-modlog -->
+
+<!-- Page: Data Viewer -->
+<div class="page" id="page-dataviewer">
+  <div id="dv-wrap">
+
+    <!-- Controller selector + datetime range -->
+    <div class="panel">
+      <div class="row">
+        <label for="dv-selector">Controller:</label>
+        <select id="dv-selector" onchange="onDvSelect()">
+          <option value="">Select Controller</option>
+        </select>
+        <label for="dv-start" style="margin-left:12px;">Start:</label>
+        <input type="datetime-local" id="dv-start" class="cfg-input">
+        <label for="dv-end">End:</label>
+        <input type="datetime-local" id="dv-end" class="cfg-input">
+      </div>
+    </div>
+
+    <!-- Inputs selection table -->
+    <div class="panel" id="dv-inputs-panel">
+      <h2>Inputs</h2>
+      <table id="dv-inputs-table">
+        <thead><tr><th style="width:28px;"></th><th>Name</th><th>Last Value</th></tr></thead>
+        <tbody id="dv-inputs-body">
+          <tr><td colspan="3" style="color:#aaa;">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Outputs selection table -->
+    <div class="panel" id="dv-outputs-panel">
+      <h2>Outputs</h2>
+      <table id="dv-outputs-table">
+        <thead><tr><th style="width:28px;"></th><th>Name</th><th>Last Value</th></tr></thead>
+        <tbody id="dv-outputs-body">
+          <tr><td colspan="3" style="color:#aaa;">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Actions -->
+    <div class="panel">
+      <div class="row">
+        <button class="primary" id="dv-btn-open" onclick="gatherAndOpen()" disabled>Open in Data Viewer</button>
+        <label class="cfg-cb-label" style="margin-left:12px;">
+          <input type="checkbox" id="dv-auto-update" checked> Auto-Update
+        </label>
+      </div>
+      <div id="dv-status"></div>
+    </div>
+
+  </div>
+</div><!-- end page-dataviewer -->
 
 <script src="/static/app.js"></script>
 </body>

@@ -23,7 +23,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 from fmlc.stackedclasses import controller_stack
-from fmlc.utility import LOG_LEVEL_MAP, module_io, module_status, resolve_config
+from fmlc.utility import LOG_LEVEL_MAP, gather_outputs, module_io, module_status, resolve_config
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / 'static'
@@ -329,6 +329,58 @@ def api_module_log():
         return jsonify({'status': 'error', 'message': str(exc)}), 500
 
     return jsonify({'status': 'ok', 'data': data})
+
+_dv_cache: dict = {}  # keyed by module name; holds last gather_outputs result
+
+@app.route('/api/data_outputs', methods=['POST'])
+def api_data_outputs():
+    """Gather selected outputs for one controller into flat and DataFrame tables."""
+    body = request.get_json(force=True)
+    if body is None:
+        return jsonify({'status': 'error', 'message': 'No JSON body.'}), 400
+
+    name = body.get('module', '')
+    keys = body.get('keys', [])
+    start = body.get('start') or None
+    end = body.get('end') or None
+
+    with _lock:
+        s = _stack
+
+    if s is None:
+        return jsonify({'status': 'error', 'message': 'No stack loaded.'}), 400
+    if name not in s.controller:
+        return jsonify({'status': 'error', 'message': f'Unknown controller: {name}'}), 400
+    if not keys:
+        return jsonify({'status': 'error', 'message': 'No output keys specified.'}), 400
+
+    try:
+        result = gather_outputs(s, name, keys, start=start, end=end)
+    except Exception as exc:
+        log.warning('Error gathering outputs for %s: %s', name, exc)
+        return jsonify({'status': 'error', 'message': str(exc)}), 500
+
+    _dv_cache[name] = result
+    return jsonify({
+        'status': 'ok',
+        'flat_rows': len(result['flat_df']),
+        'df_count': sum(len(v) for v in result['df_data'].values()),
+    })
+
+@app.route('/api/data_csv', methods=['GET'])
+def api_data_csv():
+    """Return the last gathered flat DataFrame for one controller as CSV."""
+    name = request.args.get('module', '')
+
+    if name not in _dv_cache:
+        return jsonify({'status': 'error',
+                        'message': 'No gathered data. Call /api/data_outputs first.'}), 400
+
+    flat_df = _dv_cache[name]['flat_df']
+    if flat_df.empty:
+        return jsonify({'status': 'error', 'message': 'No flat data available.'}), 204
+
+    return flat_df.to_csv(), 200, {'Content-Type': 'text/csv; charset=utf-8'}
 
 @app.route('/api/logs', methods=['GET'])
 def api_logs():

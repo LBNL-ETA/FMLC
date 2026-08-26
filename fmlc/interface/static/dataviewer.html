@@ -1,0 +1,919 @@
+<!--
+Framework for Multi Layer Control in Python (FMLC) Copyright (c) 2019,
+The Regents of the University of California, through Lawrence Berkeley
+National Laboratory (subject to receipt of any required approvals
+from the U.S. Dept. of Energy). All rights reserved.
+
+Framework for Multi Layer Control
+CSV Data Viewer - standalone interactive plot viewer for FMLC log output.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSV Data Viewer</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --border: #d9dee8;
+      --text: #1f2a44;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --danger: #dc2626;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 1rem;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    h1 {
+      margin: 0 0 0.75rem;
+      font-size: 1.4rem;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.9rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    label {
+      font-size: 0.92rem;
+    }
+
+    input[type="text"],
+    select,
+    button,
+    .file-btn {
+      font-size: 0.9rem;
+      padding: 0.42rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+
+    button,
+    .file-btn {
+      cursor: pointer;
+    }
+
+    button:hover,
+    .file-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .primary-btn {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .danger-btn {
+      color: var(--danger);
+      border-color: #fecaca;
+      background: #fff5f5;
+    }
+
+    #fileInput {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #status {
+      margin-top: 0.55rem;
+      font-size: 0.87rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+
+    #status.error {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    #status.success {
+      color: #166534;
+      font-weight: 600;
+    }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.35rem 0.6rem;
+      margin-top: 0.55rem;
+      max-height: 180px;
+      overflow: auto;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      padding: 0.5rem;
+      background: #fafcff;
+    }
+
+    .checkbox-grid label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .subplot-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 0.7rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .subplot-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.45rem;
+    }
+
+    .subplot-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .plot {
+      width: 100%;
+      height: 340px;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>CSV Data Viewer</h1>
+
+  <div class="panel">
+    <div class="row">
+      <label for="fileInput" id="chooseFileBtn" class="file-btn">Choose File</label>
+      <input id="fileInput" type="file" accept=".csv,text/csv" />
+
+      <label for="autoReloadEnabled">
+        <input id="autoReloadEnabled" type="checkbox" />
+        Auto-reload
+      </label>
+
+      <label for="autoReloadSeconds">every</label>
+      <input id="autoReloadSeconds" type="number" min="1" step="1" value="10" style="width: 80px" />
+      <span class="muted">seconds</span>
+    </div>
+    <div id="status">Load a CSV file to begin.</div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <strong>Column Selection (Numeric only)</strong>
+      <span class="muted">The first column is treated as datetime index.</span>
+    </div>
+    <div id="globalColumnPanel" class="checkbox-grid"></div>
+  </div>
+
+  <div id="subplotsContainer"></div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const fileInput = document.getElementById("fileInput");
+    const chooseFileBtn = document.getElementById("chooseFileBtn");
+    const autoReloadEnabled = document.getElementById("autoReloadEnabled");
+    const autoReloadSeconds = document.getElementById("autoReloadSeconds");
+    const globalColumnPanel = document.getElementById("globalColumnPanel");
+    const subplotsContainer = document.getElementById("subplotsContainer");
+
+    const state = {
+      data: null,
+      numericColumns: [],
+      globalEnabledColumns: new Set(),
+      subplots: [],
+      nextSubplotId: 1,
+      syncInProgress: false,
+      syncedXRange: null,
+      autoReloadTimer: null,
+      isReloading: false,
+      selectedFileSignature: null,
+      fileHandle: null
+    };
+
+    fileInput.addEventListener("change", () => {
+      // Selecting a (new) file starts from a clean/default viewer state.
+      // This is the fallback path for browsers without File System Access API.
+      state.fileHandle = null;
+      const file = fileInput.files && fileInput.files[0];
+      state.selectedFileSignature = file ? `${file.name}|${file.size}|${file.lastModified}` : null;
+      loadCsvAndRender(false);
+      restartAutoReloadIfNeeded();
+    });
+
+    chooseFileBtn.addEventListener("click", async (event) => {
+      // Prefer File System Access API when available so each auto-refresh can
+      // re-acquire a fresh File snapshot instead of relying on a stale input File.
+      // Important: this API is not available for file:// origins.
+      if (location.protocol === "file:") return;
+      if (typeof window.showOpenFilePicker !== "function") return;
+
+      event.preventDefault();
+
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          multiple: false,
+          types: [
+            {
+              description: "CSV files",
+              accept: {
+                "text/csv": [".csv"],
+                "text/plain": [".csv"]
+              }
+            }
+          ]
+        });
+
+        state.fileHandle = handle;
+        fileInput.value = "";
+        state.selectedFileSignature = null;
+
+        await loadCsvAndRender(false);
+        restartAutoReloadIfNeeded();
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+        setStatus(err.message || String(err), "error");
+      }
+    });
+
+    autoReloadEnabled.addEventListener("change", () => {
+      restartAutoReloadIfNeeded();
+    });
+
+    autoReloadSeconds.addEventListener("change", () => {
+      restartAutoReloadIfNeeded();
+    });
+
+    function setStatus(message, type) {
+      statusEl.textContent = message;
+      statusEl.className = type ? type : "";
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    var getCsvTextFromSelectedSource = async function () {
+      let lastErr = null;
+      const retryDelaysMs = [0, 200, 500, 1000, 2000];
+
+      // Preferred path: File System Access API handle (fresh getFile() each reload).
+      if (state.fileHandle) {
+        for (const delay of retryDelaysMs) {
+          if (delay > 0) await sleep(delay);
+
+          try {
+            const file = await state.fileHandle.getFile();
+            state.selectedFileSignature = `${file.name}|${file.size}|${file.lastModified}`;
+            return await file.text();
+          } catch (err) {
+            lastErr = err;
+          }
+        }
+
+        throw new Error(
+          (lastErr && lastErr.message) ||
+            "Failed to read CSV via file handle. Please choose file again."
+        );
+      }
+
+      // Fallback path: classic input[type=file]
+      // Re-acquire the latest File object on every retry attempt so we do not
+      // keep reading a stale snapshot.
+      for (const delay of retryDelaysMs) {
+        if (delay > 0) await sleep(delay);
+
+        const currentFile = fileInput.files && fileInput.files[0];
+        if (!currentFile) {
+          throw new Error("Select a local CSV file first.");
+        }
+
+        state.selectedFileSignature = `${currentFile.name}|${currentFile.size}|${currentFile.lastModified}`;
+
+        try {
+          return await currentFile.text();
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+
+      throw new Error(
+        (lastErr && lastErr.message) ||
+          "Failed to read selected CSV file. If this persists, choose the file again."
+      );
+    }
+
+    async function loadCsvAndRender(preserveState = true) {
+      if (state.isReloading) return;
+      state.isReloading = true;
+
+      try {
+        setStatus("Loading CSV...", "");
+        const preserved = preserveState ? captureViewState() : null;
+
+        const csvText = await getCsvTextFromSelectedSource();
+        const parsed = parseCsv(csvText);
+
+        state.data = parsed;
+        state.numericColumns = Object.keys(parsed.numericSeries);
+
+        if (state.numericColumns.length === 0) {
+          throw new Error("No numeric columns found in CSV.");
+        }
+
+        restoreGlobalColumns(preserved);
+        renderGlobalColumnToggles();
+        restoreSubplots(preserved);
+
+        // Keep user y-zoom/pan, but always re-fit x-axis to latest data on refresh.
+        if (preserveState) {
+          autoScaleXAxisOnly();
+        }
+
+        const loadedAt = new Date().toLocaleString();
+        setStatus(`Loaded ${parsed.timestamps.length} rows at ${loadedAt}.`, "success");
+      } catch (err) {
+        const message = (err && err.message) || String(err);
+        const isTransientReadIssue =
+          /requested file could not be read/i.test(message) ||
+          /permission/i.test(message) ||
+          /locked/i.test(message) ||
+          /busy/i.test(message);
+
+        // During auto-reload, keep trying in background without noisy status churn.
+        // This preserves previous "it worked earlier" behavior where occasional
+        // read races self-recover on subsequent ticks.
+        if (!(preserveState && isTransientReadIssue)) {
+          setStatus(message, "error");
+        }
+      } finally {
+        state.isReloading = false;
+      }
+    }
+
+    function captureViewState() {
+      const hasExistingData = !!state.data;
+      return {
+        hasExistingData,
+        globalEnabledColumns: new Set(state.globalEnabledColumns),
+        subplotsCount: state.subplots.length,
+        syncRange: state.syncedXRange ? [...state.syncedXRange] : null,
+        perSubplot: state.subplots.map((subplot) => {
+          const layout = subplot.plotEl && subplot.plotEl.layout ? subplot.plotEl.layout : null;
+          const traceVisibility = {};
+          const traceOrder = [];
+          if (subplot.plotEl && Array.isArray(subplot.plotEl.data)) {
+            subplot.plotEl.data.forEach((trace) => {
+              if (!trace || !trace.name) return;
+              traceOrder.push(trace.name);
+              traceVisibility[trace.name] = trace.visible;
+            });
+          }
+
+          return {
+            traceVisibility,
+            traceOrder,
+            xRange:
+              layout &&
+              layout.xaxis &&
+              Array.isArray(layout.xaxis.range) &&
+              layout.xaxis.range.length === 2
+                ? [...layout.xaxis.range]
+                : null,
+            yRange:
+              layout &&
+              layout.yaxis &&
+              Array.isArray(layout.yaxis.range) &&
+              layout.yaxis.range.length === 2
+                ? [...layout.yaxis.range]
+                : null
+          };
+        })
+      };
+    }
+
+    function restoreGlobalColumns(preserved) {
+      if (!preserved || !preserved.hasExistingData) {
+        state.globalEnabledColumns = new Set(state.numericColumns);
+        return;
+      }
+
+      const restored = new Set();
+      state.numericColumns.forEach((column) => {
+        if (preserved.globalEnabledColumns.has(column)) restored.add(column);
+      });
+
+      state.globalEnabledColumns = restored.size > 0 ? restored : new Set(state.numericColumns);
+    }
+
+    function restoreSubplots(preserved) {
+      const targetCount =
+        preserved && preserved.hasExistingData && preserved.subplotsCount > 0
+          ? preserved.subplotsCount
+          : 1;
+
+      state.subplots = [];
+      state.nextSubplotId = 1;
+      subplotsContainer.innerHTML = "";
+
+      for (let i = 0; i < targetCount; i++) {
+        const subplot = createSubplotCard();
+        state.subplots.push(subplot);
+      }
+
+      state.syncedXRange =
+        preserved && preserved.syncRange && preserved.syncRange.length === 2
+          ? [...preserved.syncRange]
+          : null;
+
+      state.subplots.forEach((subplot, idx) => {
+        const per = preserved && preserved.perSubplot ? preserved.perSubplot[idx] : null;
+        renderSubplot(subplot, per);
+      });
+
+      updateRemoveButtonStates();
+    }
+
+    function autoScaleXAxisOnly() {
+      if (!state.subplots.length) return;
+
+      state.syncInProgress = true;
+      state.syncedXRange = null;
+
+      const relayoutPromises = state.subplots.map((subplot) =>
+        Plotly.relayout(subplot.plotEl, { "xaxis.autorange": true })
+      );
+
+      Promise.all(relayoutPromises).finally(() => {
+        state.syncInProgress = false;
+      });
+    }
+
+    function restartAutoReloadIfNeeded() {
+      if (state.autoReloadTimer) {
+        clearInterval(state.autoReloadTimer);
+        state.autoReloadTimer = null;
+      }
+
+      if (!autoReloadEnabled.checked) return;
+
+      const seconds = Number(autoReloadSeconds.value);
+      if (!Number.isFinite(seconds) || seconds <= 0) return;
+
+      state.autoReloadTimer = setInterval(() => {
+        if (state.isReloading) return;
+        // Run auto-reload for both file-handle and input[type=file] flows.
+        loadCsvAndRender(true);
+      }, seconds * 1000);
+    }
+
+    function parseCsv(text) {
+      const lines = text
+        .split(/\r?\n/)
+        .map((l) => l.replace(/\r$/, "").trim())
+        .filter((l) => l.length > 0);
+
+      if (lines.length < 2) {
+        throw new Error("CSV must contain at least a header row and one data row.");
+      }
+
+      let headers = parseCsvLine(lines[0]);
+      if (headers.length < 2) {
+        throw new Error("CSV must contain datetime column + at least one data column.");
+      }
+
+      headers = headers.map((h, i) => {
+        const value = (h || "").trim();
+        if (i === 0) return value || "datetime";
+        return value || `column_${i}`;
+      });
+
+      const columnValues = {};
+      for (let i = 1; i < headers.length; i++) {
+        columnValues[headers[i]] = [];
+      }
+
+      const timestamps = [];
+      const rawTimestamps = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const row = parseCsvLine(lines[i]);
+        if (row.length === 0) continue;
+
+        while (row.length < headers.length) row.push("");
+
+        const timestampText = (row[0] || "").trim();
+        if (!timestampText) continue;
+
+        const parsedDate = parseDatetime(timestampText);
+        if (!(parsedDate instanceof Date) || Number.isNaN(parsedDate.getTime())) continue;
+
+        rawTimestamps.push(timestampText);
+        timestamps.push(parsedDate);
+
+        for (let j = 1; j < headers.length; j++) {
+          columnValues[headers[j]].push((row[j] || "").trim());
+        }
+      }
+
+      if (timestamps.length === 0) {
+        throw new Error("No valid datetime rows found in first column.");
+      }
+
+      const numericSeries = {};
+      for (const [column, values] of Object.entries(columnValues)) {
+        if (isNumericColumn(values)) {
+          numericSeries[column] = values.map((v) => {
+            const t = v.trim();
+            return t === "" ? null : Number(t);
+          });
+        }
+      }
+
+      return { headers, timestamps, rawTimestamps, numericSeries };
+    }
+
+    function parseDatetime(value) {
+      // Support "YYYY-MM-DD HH:mm:ss" and ISO-like strings
+      const normalized = value.includes("T") ? value : value.replace(" ", "T");
+      return new Date(normalized);
+    }
+
+    function isNumericColumn(values) {
+      let foundNumeric = false;
+      for (const raw of values) {
+        const value = raw.trim();
+        if (value === "") continue;
+        const n = Number(value);
+        if (!Number.isFinite(n)) return false;
+        foundNumeric = true;
+      }
+      return foundNumeric;
+    }
+
+    function parseCsvLine(line) {
+      const out = [];
+      let current = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+
+        if (c === "\"") {
+          if (inQuotes && line[i + 1] === "\"") {
+            current += "\"";
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (c === "," && !inQuotes) {
+          out.push(current);
+          current = "";
+        } else {
+          current += c;
+        }
+      }
+      out.push(current);
+      return out;
+    }
+
+    function renderGlobalColumnToggles() {
+      globalColumnPanel.innerHTML = "";
+      state.numericColumns.forEach((column) => {
+        const id = `global-col-${cssEscape(column)}`;
+        const isChecked = state.globalEnabledColumns.has(column);
+        const wrapper = document.createElement("label");
+        wrapper.innerHTML = `
+          <input type="checkbox" id="${id}" ${isChecked ? "checked" : ""} />
+          <span>${escapeHtml(column)}</span>
+        `;
+        const checkbox = wrapper.querySelector("input");
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) {
+            state.globalEnabledColumns.add(column);
+          } else {
+            state.globalEnabledColumns.delete(column);
+          }
+          renderAllSubplots();
+        });
+        globalColumnPanel.appendChild(wrapper);
+      });
+    }
+
+    function resetSubplots() {
+      state.subplots = [];
+      state.nextSubplotId = 1;
+      subplotsContainer.innerHTML = "";
+    }
+
+    function createSubplotCard() {
+      const subplotId = state.nextSubplotId++;
+
+      const card = document.createElement("div");
+      card.className = "subplot-card";
+
+      const head = document.createElement("div");
+      head.className = "subplot-head";
+
+      const title = document.createElement("div");
+      title.className = "subplot-title";
+      title.textContent = `Subplot ${subplotId}`;
+
+      const buttonGroup = document.createElement("div");
+      buttonGroup.style.display = "flex";
+      buttonGroup.style.gap = "0.4rem";
+
+      const addBtn = document.createElement("button");
+      addBtn.textContent = "Add Subplot";
+      addBtn.addEventListener("click", () => {
+        if (!state.data) {
+          setStatus("Load a CSV file before adding subplots.", "error");
+          return;
+        }
+        addSubplot();
+      });
+
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "danger-btn";
+      removeBtn.textContent = "Delete Subplot";
+      removeBtn.addEventListener("click", () => {
+        removeSubplot(subplotId);
+      });
+
+      buttonGroup.appendChild(addBtn);
+      buttonGroup.appendChild(removeBtn);
+
+      head.appendChild(title);
+      head.appendChild(buttonGroup);
+
+      const plotEl = document.createElement("div");
+      plotEl.className = "plot";
+
+      card.appendChild(head);
+      card.appendChild(plotEl);
+      subplotsContainer.appendChild(card);
+
+      return {
+        id: subplotId,
+        card,
+        plotEl,
+        relayoutHooked: false
+      };
+    }
+
+    function addSubplot() {
+      const subplot = createSubplotCard();
+      state.subplots.push(subplot);
+      renderSubplot(subplot);
+
+      if (state.syncedXRange && state.syncedXRange.length === 2) {
+        Plotly.relayout(subplot.plotEl, {
+          "xaxis.range": [state.syncedXRange[0], state.syncedXRange[1]]
+        });
+      }
+
+      updateRemoveButtonStates();
+    }
+
+    function removeSubplot(subplotId) {
+      if (state.subplots.length === 1) {
+        setStatus("At least one subplot must remain.", "error");
+        return;
+      }
+
+      const idx = state.subplots.findIndex((s) => s.id === subplotId);
+      if (idx === -1) return;
+
+      const [subplot] = state.subplots.splice(idx, 1);
+      subplot.card.remove();
+
+      updateRemoveButtonStates();
+      setStatus(`Deleted Subplot ${subplotId}.`, "success");
+    }
+
+    function updateRemoveButtonStates() {
+      const disable = state.subplots.length <= 1;
+      state.subplots.forEach((subplot) => {
+        const btn = subplot.card.querySelector(".danger-btn");
+        btn.disabled = disable;
+      });
+    }
+
+    function renderAllSubplots() {
+      state.subplots.forEach((subplot) => renderSubplot(subplot));
+    }
+
+    function renderSubplot(subplot, preservedSubplotState = null) {
+      if (!state.data) return;
+
+      const visibleColumns = state.numericColumns.filter((c) =>
+        state.globalEnabledColumns.has(c)
+      );
+
+      const traces = visibleColumns.map((column) => {
+        let visibility = true;
+        if (
+          preservedSubplotState &&
+          preservedSubplotState.traceVisibility &&
+          Object.prototype.hasOwnProperty.call(preservedSubplotState.traceVisibility, column)
+        ) {
+          visibility = preservedSubplotState.traceVisibility[column];
+        }
+
+        return {
+          type: "scatter",
+          mode: "lines",
+          name: column,
+          visible: visibility,
+          x: state.data.timestamps,
+          y: state.data.numericSeries[column],
+          hovertemplate:
+            "<b>%{fullData.name}</b><br>" +
+            "%{x|%Y-%m-%d %H:%M:%S}<br>" +
+            "Value: %{y}<extra></extra>"
+        };
+      });
+
+      const layout = {
+        margin: { l: 55, r: 18, t: 24, b: 45 },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+        showlegend: true,
+        legend: { orientation: "h", y: 1.12 },
+        dragmode: "zoom",
+        xaxis: {
+          type: "date",
+          automargin: true
+        },
+        yaxis: {
+          automargin: true
+        },
+        annotations:
+          traces.length === 0
+            ? [
+                {
+                  text: "No active numeric columns selected",
+                  x: 0.5,
+                  y: 0.5,
+                  xref: "paper",
+                  yref: "paper",
+                  showarrow: false,
+                  font: { color: "#6b7280", size: 13 }
+                }
+              ]
+            : []
+      };
+
+      if (
+        preservedSubplotState &&
+        preservedSubplotState.xRange &&
+        preservedSubplotState.xRange.length === 2
+      ) {
+        layout.xaxis.range = [...preservedSubplotState.xRange];
+      } else if (state.syncedXRange && state.syncedXRange.length === 2) {
+        layout.xaxis.range = [...state.syncedXRange];
+      }
+
+      if (
+        preservedSubplotState &&
+        preservedSubplotState.yRange &&
+        preservedSubplotState.yRange.length === 2
+      ) {
+        layout.yaxis.range = [...preservedSubplotState.yRange];
+      }
+
+      const config = {
+        responsive: true,
+        scrollZoom: true,
+        displaylogo: false
+      };
+
+      Plotly.react(subplot.plotEl, traces, layout, config);
+
+      if (!subplot.relayoutHooked) {
+        subplot.plotEl.on("plotly_relayout", (eventData) => {
+          handleSynchronizedXZoom(subplot.id, eventData);
+        });
+        subplot.relayoutHooked = true;
+      }
+    }
+
+    function handleSynchronizedXZoom(sourceSubplotId, eventData) {
+      if (state.syncInProgress) return;
+      if (!eventData || typeof eventData !== "object") return;
+
+      const hasExplicitRange =
+        Object.prototype.hasOwnProperty.call(eventData, "xaxis.range[0]") &&
+        Object.prototype.hasOwnProperty.call(eventData, "xaxis.range[1]");
+      const hasAutorange = Object.prototype.hasOwnProperty.call(eventData, "xaxis.autorange");
+
+      if (!hasExplicitRange && !hasAutorange) return;
+
+      state.syncInProgress = true;
+
+      let relayoutPayload = null;
+      if (hasExplicitRange) {
+        const range = [eventData["xaxis.range[0]"], eventData["xaxis.range[1]"]];
+        state.syncedXRange = range;
+        relayoutPayload = { "xaxis.range": range };
+      } else {
+        state.syncedXRange = null;
+        relayoutPayload = { "xaxis.autorange": true };
+      }
+
+      const updatePromises = [];
+      state.subplots.forEach((subplot) => {
+        if (subplot.id === sourceSubplotId) return;
+        updatePromises.push(Plotly.relayout(subplot.plotEl, relayoutPayload));
+      });
+
+      Promise.all(updatePromises).finally(() => {
+        state.syncInProgress = false;
+      });
+    }
+
+    function escapeHtml(value) {
+      const div = document.createElement("div");
+      div.textContent = String(value);
+      return div.innerHTML;
+    }
+
+    function cssEscape(value) {
+      return String(value).replace(/[^a-zA-Z0-9_-]/g, "_");
+    }
+
+    // Optional URL preload: ?file=<encoded-server-url>
+    // When present, fetches CSV from that URL instead of asking for a local file.
+    // Standalone file-picker flow is fully preserved when no ?file= param is given.
+    async function preloadFromUrl() {
+      var params = new URLSearchParams(window.location.search);
+      var fileUrl = params.get("file");
+      if (!fileUrl) { return; }
+      getCsvTextFromSelectedSource = async function () {
+        var resp = await fetch(fileUrl);
+        if (!resp.ok) { throw new Error("Server returned " + resp.status); }
+        return resp.text();
+      };
+      if (params.get("autoreload") === "1") {
+        autoReloadEnabled.checked = true;
+      }
+      var title = params.get("title");
+      if (title) {
+        var heading = 'FMLC Module "' + title + '" Data Viewer';
+        document.title = heading;
+        document.querySelector("h1").textContent = heading;
+      }
+      setStatus("Loading data from server...", "");
+      await loadCsvAndRender(false);
+      restartAutoReloadIfNeeded();
+    }
+
+    // Prompt local-file selection on startup.
+    window.addEventListener("load", async () => {
+      setStatus("Choose a local CSV file to load.", "");
+      restartAutoReloadIfNeeded();
+      await preloadFromUrl();
+    });
+  </script>
+</body>
+</html>

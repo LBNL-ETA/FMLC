@@ -43,11 +43,7 @@ function onFileSelected(input) {
       if ('log_clear_period' in sc) { document.getElementById('cfg-log-clear').value = sc['log_clear_period'] / 3600; }
       if ('log_dump_period' in sc) { document.getElementById('cfg-log-dump').value = sc['log_dump_period'] / 3600; }
       if ('log_path' in sc) { document.getElementById('cfg-log-path').value = sc['log_path']; }
-      if ('log_keys' in sc) {
-        document.getElementById('cfg-key-input').checked = sc['log_keys'].indexOf('input') !== -1;
-        document.getElementById('cfg-key-output').checked = sc['log_keys'].indexOf('output') !== -1;
-        document.getElementById('cfg-key-log').checked = sc['log_keys'].indexOf('log') !== -1;
-      }
+
       setStackConfigInputs(false); // enable
       document.getElementById('btn-load').disabled = false;
       showMsg('File parsed. Click "Load Config" to initialise the stack.', true);
@@ -68,10 +64,6 @@ function loadConfig() {
 
   // Merge UI field values into the config as stack_config before posting
   var payload = JSON.parse(JSON.stringify(_configJson)); // deep copy
-  var logKeys = [];
-  if (document.getElementById('cfg-key-input').checked) { logKeys.push('input'); }
-  if (document.getElementById('cfg-key-output').checked) { logKeys.push('output'); }
-  if (document.getElementById('cfg-key-log').checked) { logKeys.push('log'); }
   payload.stack_config = {
     tz: parseInt(document.getElementById('cfg-tz').value, 10),
     name: document.getElementById('cfg-name').value,
@@ -79,8 +71,7 @@ function loadConfig() {
     align_ts: parseFloat(document.getElementById('cfg-align').value) || null,
     log_clear_period: parseInt(document.getElementById('cfg-log-clear').value, 10) * 3600,
     log_dump_period: parseInt(document.getElementById('cfg-log-dump').value, 10) * 3600,
-    log_path: document.getElementById('cfg-log-path').value,
-    log_keys: logKeys
+    log_path: document.getElementById('cfg-log-path').value
   };
 
   apiPost('/api/load', payload, function (data, err) {
@@ -93,6 +84,7 @@ function loadConfig() {
     _loopStructure = data.loops || [];
     buildTables(_loopStructure);
     buildModlogDropdown(_loopStructure);
+    buildDvDropdown(_loopStructure);
     // Reflect the confirmed stack_config back from the server
     var sc = data.stack_config;
     document.getElementById('cfg-tz').value = sc['tz'];
@@ -102,9 +94,6 @@ function loadConfig() {
     document.getElementById('cfg-log-clear').value = sc['log_clear_period'] / 3600;
     document.getElementById('cfg-log-dump').value = sc['log_dump_period'] / 3600;
     document.getElementById('cfg-log-path').value = sc['log_path'];
-    document.getElementById('cfg-key-input').checked = sc['log_keys'].indexOf('input') !== -1;
-    document.getElementById('cfg-key-output').checked = sc['log_keys'].indexOf('output') !== -1;
-    document.getElementById('cfg-key-log').checked = sc['log_keys'].indexOf('log') !== -1;
     setBadge('loaded');
     showMsg('Config loaded. Click "Start FMLC" to begin.', true);
     document.getElementById('btn-load').disabled = false;
@@ -207,6 +196,8 @@ function pollStatus() {
     }
   });
   pollModuleLog();
+  pollDvLastValues();
+  pollDvAutoUpdate();
   apiGet('/api/logs', function (data, err) {
     if (err || !data) { return; }
     var lines = data.lines || [];
@@ -349,9 +340,6 @@ function setStackConfigInputs(disabled) {
   document.getElementById('cfg-log-clear').disabled = disabled;
   document.getElementById('cfg-log-dump').disabled = disabled;
   document.getElementById('cfg-log-path').disabled = disabled;
-  document.getElementById('cfg-key-input').disabled = disabled;
-  document.getElementById('cfg-key-output').disabled = disabled;
-  document.getElementById('cfg-key-log').disabled = disabled;
 }
 
 function setButtons(load, start, stop, unload) {
@@ -546,6 +534,228 @@ function pollModuleLog() {
   if (!page || !page.classList.contains('active')) { return; }
   var name = document.getElementById('modlog-selector').value;
   if (name) { fetchModuleLog(name); }
+}
+
+// Update Last Value cells in Data Viewer tables without rebuilding rows (preserves checkboxes)
+function dvUpdateLastValues(tbodyId, kvObj, prefix) {
+  var tbody = document.getElementById(tbodyId);
+  var rows = tbody.rows;
+  for (var i = 0; i < rows.length; i++) {
+    var nameCell = rows[i].cells[1];
+    if (!nameCell) { continue; }
+    var k = nameCell.textContent;
+    if (!(k in kvObj)) { continue; }
+    var raw = kvObj[k];
+    var newStr = (raw === null || raw === undefined) ? 'null' : String(raw);
+    var valCell = rows[i].cells[2];
+    if (!valCell) { continue; }
+    // Read current full value from span or plain text
+    var fullSpan = valCell.querySelector('.modlog-val-full');
+    var currentStr = fullSpan ? fullSpan.textContent : valCell.textContent.replace(/…$/, '');
+    if (currentStr === newStr) { continue; }
+    // Value changed: rebuild cell (truncated), preserving checkbox in cell 0
+    var newCell = document.createElement('td');
+    newCell.className = 'cell-val';
+    newCell.textContent = newStr.length > 80 ? newStr.slice(0, 80) + '…' : newStr;
+    rows[i].replaceChild(newCell, valCell);
+  }
+}
+
+// Refresh Data Viewer last values when the tab is active and a controller is selected
+function pollDvLastValues() {
+  var page = document.getElementById('page-dataviewer');
+  if (!page || !page.classList.contains('active')) { return; }
+  var name = document.getElementById('dv-selector').value;
+  if (!name) { return; }
+  apiGet('/api/module_log?name=' + encodeURIComponent(name), function (data, err) {
+    if (err || !data || data.status !== 'ok') { return; }
+    dvUpdateLastValues('dv-inputs-body', data.data.inputs || {}, 'input.');
+    dvUpdateLastValues('dv-outputs-body', data.data.outputs || {}, 'output.');
+  });
+}
+
+// ---- Data Viewer tab ----
+
+var _dvLastCsvUrl = null; // URL of the last gathered flat CSV
+var _dvGathering = false; // prevent overlapping auto-update calls
+
+function buildDvDropdown(loops) {
+  var sel = document.getElementById('dv-selector');
+  sel.innerHTML = '<option value="">Select Controller</option>';
+  for (var i = 0; i < loops.length; i++) {
+    var mods = loops[i].modules || [];
+    for (var j = 0; j < mods.length; j++) {
+      var opt = document.createElement('option');
+      opt.value = mods[j];
+      opt.textContent = mods[j];
+      sel.appendChild(opt);
+    }
+  }
+  dvClearPanels();
+  document.getElementById('dv-btn-open').disabled = true;
+}
+
+function onDvSelect() {
+  var name = document.getElementById('dv-selector').value;
+  dvClearPanels();
+  document.getElementById('dv-btn-open').disabled = true;
+  _dvLastCsvUrl = null;
+  if (!name) { dvSetStatus(''); return; }
+  apiGet('/api/module_log?name=' + encodeURIComponent(name), function (data, err) {
+    if (err || !data || data.status !== 'ok') { dvSetStatus('Failed to load outputs.'); return; }
+    dvRenderKvTable('dv-inputs-body', data.data.inputs || {}, 'input.');
+    dvRenderKvTable('dv-outputs-body', data.data.outputs || {}, 'output.');
+    document.getElementById('dv-btn-open').disabled = false;
+  });
+}
+
+function dvClearPanels() {
+  var empty = '<tr><td colspan="3" style="color:#aaa;">—</td></tr>';
+  document.getElementById('dv-inputs-body').innerHTML = empty;
+  document.getElementById('dv-outputs-body').innerHTML = empty;
+}
+
+function dvSetStatus(msg) {
+  document.getElementById('dv-status').textContent = msg;
+}
+
+function dvClassifyValue(raw) {
+  // Returns 'scalar', 'flat_json', 'df_json', or 'string'
+  if (raw === null || raw === undefined) { return 'scalar'; }
+  var n = Number(raw);
+  if (!isNaN(n) && String(raw) !== '') { return 'scalar'; }
+  var s = String(raw);
+  if (s.startsWith('{') || s.startsWith('[')) {
+    try {
+      var parsed = JSON.parse(s);
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        if ('columns' in parsed || 'index' in parsed) { return 'df_json'; }
+        return 'flat_json';
+      }
+    } catch (e) { /* not valid JSON */ }
+  }
+  return 'string';
+}
+
+function dvRenderKvTable(tbodyId, kvObj, prefix) {
+  var tbody = document.getElementById(tbodyId);
+  tbody.innerHTML = '';
+  var keys = Object.keys(kvObj);
+  if (!keys.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="color:#aaa;">—</td></tr>';
+    return;
+  }
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var raw = kvObj[k];
+    var valStr = (raw === null || raw === undefined) ? 'null' : String(raw);
+    var kind = dvClassifyValue(raw);
+
+    var tr = document.createElement('tr');
+    var tdCb = document.createElement('td');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'dv-output-cb';
+    cb.value = prefix + k;   // prefixed key sent to server
+
+    if (kind === 'string') {
+      cb.checked = false;
+      cb.disabled = true;
+      tr.style.color = '#aaa';
+    } else if (kind === 'df_json') {
+      cb.checked = false;
+    } else {
+      cb.checked = true;
+    }
+
+    tdCb.appendChild(cb);
+    var tdName = document.createElement('td');
+    tdName.textContent = k;
+    var tdVal = document.createElement('td');
+    tdVal.className = 'cell-val';
+    tdVal.textContent = valStr.length > 80 ? valStr.slice(0, 80) + '…' : valStr;
+    tr.appendChild(tdCb);
+    tr.appendChild(tdName);
+    tr.appendChild(tdVal);
+    tbody.appendChild(tr);
+  }
+}
+
+function dvSelectedKeys() {
+  var cbs = document.querySelectorAll('.dv-output-cb');
+  var keys = [];
+  for (var i = 0; i < cbs.length; i++) {
+    if (cbs[i].checked) { keys.push(cbs[i].value); }
+  }
+  return keys;
+}
+
+function dvDatetimeToIso(inputId) {
+  var val = document.getElementById(inputId).value;
+  return val ? val.replace('T', ' ') : null;
+}
+
+function dvBuildPayload() {
+  var name = document.getElementById('dv-selector').value;
+  if (!name) { return null; }
+  var keys = dvSelectedKeys();
+  if (!keys.length) { return null; }
+  return {
+    module: name,
+    keys: keys,
+    start: dvDatetimeToIso('dv-start'),
+    end: dvDatetimeToIso('dv-end')
+  };
+}
+
+function dvDoGather(payload, callback) {
+  if (_dvGathering) { return; }
+  _dvGathering = true;
+  apiPost('/api/data_outputs', payload, function (data, err) {
+    _dvGathering = false;
+    if (err || !data || data.status !== 'ok') {
+      dvSetStatus('Error: ' + (data && data.message ? data.message : err));
+      if (callback) { callback(false); }
+      return;
+    }
+    var flat = data.flat_rows;
+    var dfCount = data.df_count;
+    var msg = 'Flat rows: ' + flat + '.';
+    if (dfCount) { msg += ' DataFrame entries: ' + dfCount + '.'; }
+    dvSetStatus(msg);
+    var name = payload.module;
+    var keys = payload.keys;
+    _dvLastCsvUrl = '/api/data_csv?module=' + encodeURIComponent(name) +
+      '&keys=' + encodeURIComponent(keys.join(',')) +
+      (payload.start ? '&start=' + encodeURIComponent(payload.start) : '') +
+      (payload.end ? '&end=' + encodeURIComponent(payload.end) : '');
+    if (callback) { callback(flat > 0); }
+  });
+}
+
+function gatherAndOpen() {
+  var payload = dvBuildPayload();
+  if (!payload) { dvSetStatus('Select a controller and at least one output.'); return; }
+  dvSetStatus('Gathering…');
+  document.getElementById('dv-btn-open').disabled = true;
+  dvDoGather(payload, function (hasData) {
+    document.getElementById('dv-btn-open').disabled = false;
+    if (hasData) {
+      var modName = document.getElementById('dv-selector').value;
+      var url = '/static/dataviewer.html?autoreload=1' +
+        '&title=' + encodeURIComponent(modName) +
+        '&file=' + encodeURIComponent(_dvLastCsvUrl);
+      window.open(url, '_blank');
+    }
+  });
+}
+
+// Called each poll cycle; silently re-gathers if Auto-Update is checked and a controller is selected
+function pollDvAutoUpdate() {
+  if (!document.getElementById('dv-auto-update').checked) { return; }
+  var payload = dvBuildPayload();
+  if (!payload) { return; }
+  dvDoGather(payload, null);
 }
 
 startPolling();

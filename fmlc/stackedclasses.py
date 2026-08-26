@@ -382,17 +382,17 @@ class controller_stack:
         In multi thread mode, this will be submitted to self.exe.
         """
         refreshed_db = False
-        if now - self.last_refresh_time > self.refresh_period:
+        if now - self.last_refresh_time >= self.refresh_period:
             self.read_from_db(refresh_device=True)
             self.last_refresh_time = now
             refreshed_db = True
 
-        if now - self.last_dump_time > self.dump_log_period:
+        if now - self.last_dump_time >= self.dump_log_period:
             self.executor.submit(self.log_to_csv,
                                  path=self.log_path,
                                  add_ts=self.log_add_ts)
             self.last_dump_time = now
-        if now - self.last_clear_time > self.clear_log_period:
+        if now - self.last_clear_time >= self.clear_log_period:
             self.executor.submit(self.save_and_clear,
                                  path=self.log_path,
                                  add_ts=self.log_add_ts)
@@ -605,7 +605,14 @@ class controller_stack:
 
     def save_and_clear(self, path='log', add_ts=True):
         """Save the logs to csv files and clear the current log cache in memory."""
-        self.log_to_csv(path=path, add_ts=add_ts)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        now = dtm.datetime.now().strftime('%Y%m%dT%H%M%S')
+        now = now if add_ts else 0
+        dfs = self.log_to_df()
+        for name, log in dfs.items():
+            log_path = os.path.join(path, f'{self.name}_{name}_{now}_full.csv')
+            log.to_csv(log_path)
         self.clear_logs()
 
     def log_to_csv(self, path='log', add_ts=True):

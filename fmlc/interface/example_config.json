@@ -26,7 +26,8 @@
     }
   },
   "stack_config": {
-    "log_level": 2
+    "log_level": 2,
+    "align_ts": 60
   },
   "mapping": {
     "getData_mode": "read",
