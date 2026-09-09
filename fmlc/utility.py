@@ -43,7 +43,9 @@ def resolve_config(config: dict) -> tuple:
         fn_path = entry['function']
         try:
             module_path, class_name = fn_path.rsplit('.', 1)
-            cls = getattr(importlib.import_module(module_path), class_name)
+            mod = importlib.import_module(module_path)
+            importlib.reload(mod)
+            cls = getattr(mod, class_name)
         except (ValueError, ModuleNotFoundError, AttributeError) as exc:
             raise ValueError(
                 f"Cannot import '{fn_path}' for controller '{name}': {exc}"
