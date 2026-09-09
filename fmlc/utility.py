@@ -67,6 +67,30 @@ def resolve_config(config: dict) -> tuple:
     return controller, mapping, stack_kwargs
 
 
+def _class_to_fmlc_str(cls):
+    '''Return the fully-qualified import-path string for a class or callable.'''
+    return f'{cls.__module__}.{cls.__qualname__}'
+
+
+def make_fmlc_json(controller, mapping, stack_config={}, output_path=None):
+    '''Build a FMLC-schema dict from the make_flexgrid_doper_stack outputs.'''
+    fmlc_controller = {}
+    for name, cfg in controller.items():
+        fmlc_controller[name] = {
+            'function': _class_to_fmlc_str(cfg['function']),
+            'sampletime': cfg['sampletime'],
+        }
+    fmlc_json = {
+        'controller': fmlc_controller,
+        'stack_config': stack_config,
+        'mapping': mapping,
+    }
+    if output_path is not None:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(fmlc_json, indent=2))
+    return fmlc_json
+
+
 def _fmt_ts(last_ts, tz):
     '''Format a Unix timestamp as a local datetime string adjusted by tz offset in hours.'''
     local_dt = dtm.datetime.utcfromtimestamp(last_ts) + dtm.timedelta(hours=tz)
