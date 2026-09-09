@@ -665,20 +665,19 @@ function dvSetStatus(msg) {
 }
 
 function dvClassifyValue(raw) {
-  // Returns 'scalar', 'flat_json', 'df_json', or 'string'
-  if (raw === null || raw === undefined) { return 'scalar'; }
-  var n = Number(raw);
-  if (!isNaN(n) && String(raw) !== '') { return 'scalar'; }
-  var s = String(raw);
-  if (s.startsWith('{') || s.startsWith('[')) {
-    try {
-      var parsed = JSON.parse(s);
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        if ('columns' in parsed || 'index' in parsed) { return 'df_json'; }
-        return 'flat_json';
-      }
-    } catch (e) { /* not valid JSON */ }
+  // Returns 'scalar', 'flat_json', 'df_json', or 'string' (grayed/disabled).
+  // Mirrors Python _classify_value: only plain numbers and numeric strings are plottable scalars.
+  // null/undefined, booleans, arrays, and non-numeric strings are unsupported (grayed).
+  if (raw === null || raw === undefined) { return 'string'; }
+  if (typeof raw === 'boolean') { return 'string'; }
+  if (Array.isArray(raw)) { return 'string'; }
+  if (typeof raw === 'object') {
+    if ('columns' in raw || 'index' in raw) { return 'df_json'; }
+    return 'flat_json';
   }
+  // raw is a number or string at this point
+  var n = Number(raw);
+  if (!isNaN(n) && String(raw).trim() !== '') { return 'scalar'; }
   return 'string';
 }
 
@@ -693,7 +692,7 @@ function dvRenderKvTable(tbodyId, kvObj, prefix) {
   for (var i = 0; i < keys.length; i++) {
     var k = keys[i];
     var raw = kvObj[k];
-    var valStr = (raw === null || raw === undefined) ? 'null' : String(raw);
+    var valStr = _valToStr(raw);
     var kind = dvClassifyValue(raw);
 
     var tr = document.createElement('tr');
