@@ -293,6 +293,24 @@ def api_stop():
 
     return jsonify({'status': 'ok', 'fmlc_status': 'stopped'})
 
+@app.route('/api/dump_log', methods=['POST'])
+def api_dump_log():
+    """Write the current in-memory logs to CSV using the stack's configured path."""
+    with _lock:
+        s = _stack
+
+    if s is None:
+        return jsonify({'status': 'error', 'message': 'No stack loaded.'}), 400
+
+    try:
+        s.log_to_csv(path=s.log_path, add_ts=s.log_add_ts)
+        log.info('Log dumped to %s on stop.', s.log_path)
+    except Exception as exc:
+        log.warning('Error dumping log: %s', exc)
+        return jsonify({'status': 'error', 'message': str(exc)}), 500
+
+    return jsonify({'status': 'ok', 'log_path': s.log_path})
+
 @app.route('/api/status', methods=['GET'])
 def api_status():
     """Return current FMLC status, per-module log/exec information, and loop structure."""

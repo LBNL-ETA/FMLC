@@ -138,12 +138,35 @@ function stopFmlc() {
       return;
     }
     setBadge('stopped');
-    showMsg('FMLC stopped. Click "Start FMLC" to resume, or "Unload FMLC" to reset.', true);
+    showMsg('FMLC stopped. Dumping log...', true);
     document.getElementById('btn-load').disabled = !(_configJson !== null);
     document.getElementById('btn-start').disabled = !(_loopStructure.length > 0 && _configJson !== null);
     document.getElementById('btn-stop').disabled = true;
     document.getElementById('btn-unload').disabled = false;
     setStackConfigInputs(true); // stack still in memory; changes have no effect
+
+    apiPost('/api/dump_log', {}, function (dumpData, dumpErr) {
+      if (dumpErr || !dumpData || dumpData.status !== 'ok') {
+        showMsg('FMLC stopped. Log dump failed: ' + (dumpData && dumpData.message ? dumpData.message : dumpErr));
+      } else {
+        showMsg('FMLC stopped. Log dumped to: ' + dumpData.log_path + '.', true);
+      }
+    });
+  });
+}
+
+function dumpLog() {
+  var btn = document.getElementById('btn-dump-log');
+  btn.disabled = true;
+  showMsg('Dumping log...', true);
+
+  apiPost('/api/dump_log', {}, function (data, err) {
+    btn.disabled = false;
+    if (err || !data || data.status !== 'ok') {
+      showMsg('Log dump failed: ' + (data && data.message ? data.message : err));
+    } else {
+      showMsg('Log dumped to: ' + data.log_path + '.', true);
+    }
   });
 }
 
@@ -250,6 +273,7 @@ function syncButtonsFromStatus(status) {
   var btnStart = document.getElementById('btn-start');
   var btnStop = document.getElementById('btn-stop');
   var btnUnload = document.getElementById('btn-unload');
+  var btnDumpLog = document.getElementById('btn-dump-log');
   if (!btnLoad) { return; }
 
   // Load Config requires a file to have been parsed in this browser session.
@@ -262,12 +286,14 @@ function syncButtonsFromStatus(status) {
     btnStart.disabled = true;
     btnStop.disabled = false;
     btnUnload.disabled = true; // must stop before unloading
+    btnDumpLog.disabled = false;
     setStackConfigInputs(true); // locked while running
   } else if (status === 'stopped' || status === 'loaded') {
     btnLoad.disabled = !hasFile;
     btnStart.disabled = !hasStack;
     btnStop.disabled = true;
     btnUnload.disabled = !hasStack;
+    btnDumpLog.disabled = !hasStack;
     setStackConfigInputs(true); // stack exists; changes have no effect until next Load Config
   } else {
     // idle or error: editable whenever a file has been selected
@@ -275,6 +301,7 @@ function syncButtonsFromStatus(status) {
     btnStart.disabled = true;
     btnStop.disabled = true;
     btnUnload.disabled = true;
+    btnDumpLog.disabled = true;
     setStackConfigInputs(!hasFile);
   }
 }
@@ -496,6 +523,12 @@ function makeTruncCell(valStr) {
   return td;
 }
 
+function _valToStr(raw) {
+  if (raw === null || raw === undefined) { return 'null'; }
+  if (typeof raw === 'object') { return JSON.stringify(raw); }
+  return String(raw);
+}
+
 function renderKVTable(tbodyId, kvObj) {
   var tbody = document.getElementById(tbodyId);
   var keys = Object.keys(kvObj);
@@ -518,7 +551,7 @@ function renderKVTable(tbodyId, kvObj) {
       var row = tbody.insertRow();
       row.insertCell().textContent = keys[j];
       var raw = kvObj[keys[j]];
-      var valStr = (raw === null || raw === undefined) ? 'null' : String(raw);
+      var valStr = _valToStr(raw);
       row.appendChild(makeTruncCell(valStr));
     }
     return;
@@ -527,7 +560,7 @@ function renderKVTable(tbodyId, kvObj) {
   // Key set unchanged: update only cells whose value has changed, preserving expanded state
   for (var k = 0; k < keys.length; k++) {
     var rawVal = kvObj[keys[k]];
-    var newStr = (rawVal === null || rawVal === undefined) ? 'null' : String(rawVal);
+    var newStr = _valToStr(rawVal);
     var cell = rows[k].cells[1];
     // Read current displayed value from whichever span is active (or plain text)
     var fullSpan = cell.querySelector('.modlog-val-full');
@@ -558,7 +591,7 @@ function dvUpdateLastValues(tbodyId, kvObj, prefix) {
     var k = nameCell.textContent;
     if (!(k in kvObj)) { continue; }
     var raw = kvObj[k];
-    var newStr = (raw === null || raw === undefined) ? 'null' : String(raw);
+    var newStr = _valToStr(raw);
     var valCell = rows[i].cells[2];
     if (!valCell) { continue; }
     // Read current full value from span or plain text
