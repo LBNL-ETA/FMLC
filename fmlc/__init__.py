@@ -8,7 +8,7 @@ Framework for Multi Layer Control
 Main module.
 """
 
-__version__ = "2.5.9"
+__version__ = "2.5.10"
 
 from .baseclasses import eFMU
 from .stackedclasses import controller_stack

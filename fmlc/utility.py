@@ -159,10 +159,31 @@ def module_io(stack, name):
             'last_duration': last_duration, 'outputs': outputs}
 
 
+def _is_numeric(v):
+    '''Return True if v is a plain numeric value (int or float, not bool, not NaN/None).'''
+    if v is None or isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return not (isinstance(v, float) and pd.isna(v))
+    try:
+        float(v)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 def _classify_value(val):
-    '''Classify a value: return (kind, parsed) where kind is "df", "flat", "scalar", or "skip".'''
+    '''Classify a value: return (kind, parsed) where kind is "df", "flat", "list", "scalar", or "skip".'''
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return 'skip', None
+    # Native Python dicts/lists (from in-memory log) — no JSON parsing needed.
+    if isinstance(val, dict):
+        if 'columns' in val or 'index' in val:
+            return 'df', val
+        return 'flat', val
+    if isinstance(val, list):
+        return 'list', val
+    # String values (from CSV on-disk log) — may be JSON-encoded.
     val_str = str(val) if not isinstance(val, str) else val
     if val_str.startswith('{') or val_str.startswith('['):
         try:
@@ -171,6 +192,8 @@ def _classify_value(val):
                 if 'columns' in parsed or 'index' in parsed:
                     return 'df', parsed
                 return 'flat', parsed
+            if isinstance(parsed, list):
+                return 'list', parsed
         except (ValueError, TypeError):
             pass
     return 'scalar', val
@@ -291,7 +314,17 @@ def gather_outputs(stack, name, keys, start=None, end=None):
                 df_data[iso][prefixed_key] = parsed
             elif kind == 'flat':
                 for sub_k, sub_v in parsed.items():
+                    if not _is_numeric(sub_v):
+                        continue
                     col = prefixed_key + '.' + sub_k
+                    if col not in flat_cols:
+                        flat_cols[col] = {}
+                    flat_cols[col][ts] = sub_v
+            elif kind == 'list':
+                for idx, sub_v in enumerate(parsed):
+                    if not _is_numeric(sub_v):
+                        continue
+                    col = prefixed_key + '.' + str(idx)
                     if col not in flat_cols:
                         flat_cols[col] = {}
                     flat_cols[col][ts] = sub_v

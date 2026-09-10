@@ -664,20 +664,37 @@ function dvSetStatus(msg) {
   document.getElementById('dv-status').textContent = msg;
 }
 
+function _dvIsNumeric(v) {
+  if (v === null || v === undefined || typeof v === 'boolean') { return false; }
+  if (typeof v === 'object') { return false; }
+  var n = Number(v);
+  return !isNaN(n) && String(v).trim() !== '';
+}
+
 function dvClassifyValue(raw) {
-  // Returns 'scalar', 'flat_json', 'df_json', or 'string' (grayed/disabled).
-  // Mirrors Python _classify_value: only plain numbers and numeric strings are plottable scalars.
-  // null/undefined, booleans, arrays, and non-numeric strings are unsupported (grayed).
+  // Returns 'scalar', 'flat_json', 'flat_list', 'df_json', or 'string' (grayed/disabled).
+  // Mirrors Python _classify_value + _is_numeric filtering in gather_outputs.
   if (raw === null || raw === undefined) { return 'string'; }
   if (typeof raw === 'boolean') { return 'string'; }
-  if (Array.isArray(raw)) { return 'string'; }
+  if (Array.isArray(raw)) {
+    // Plottable only if at least one element is numeric; otherwise gray.
+    for (var i = 0; i < raw.length; i++) {
+      if (_dvIsNumeric(raw[i])) { return 'flat_list'; }
+    }
+    return 'string';
+  }
   if (typeof raw === 'object') {
     if ('columns' in raw || 'index' in raw) { return 'df_json'; }
-    return 'flat_json';
+    // Flat dict: plottable only if at least one value is a numeric scalar.
+    // Nested dicts (values are objects) are not supported.
+    var vals = Object.values(raw);
+    for (var j = 0; j < vals.length; j++) {
+      if (_dvIsNumeric(vals[j])) { return 'flat_json'; }
+    }
+    return 'string';
   }
-  // raw is a number or string at this point
-  var n = Number(raw);
-  if (!isNaN(n) && String(raw).trim() !== '') { return 'scalar'; }
+  // raw is a number or string
+  if (_dvIsNumeric(raw)) { return 'scalar'; }
   return 'string';
 }
 
@@ -706,7 +723,7 @@ function dvRenderKvTable(tbodyId, kvObj, prefix) {
       cb.checked = false;
       cb.disabled = true;
       tr.style.color = '#aaa';
-    } else if (kind === 'df_json') {
+    } else if (kind === 'df_json' || kind === 'flat_json' || kind === 'flat_list') {
       cb.checked = false;
     } else {
       cb.checked = true;
