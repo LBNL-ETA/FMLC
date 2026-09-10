@@ -9,6 +9,7 @@ Utility module.
 """
 
 # pylint: disable=bare-except, broad-except, dangerous-default-value, too-many-branches, too-many-locals
+# pylint: disable=too-many-arguments, too-many-positional-arguments
 
 import datetime as dtm
 import importlib
@@ -173,14 +174,14 @@ def _is_numeric(v):
 
 
 def _classify_value(val):
-    '''Classify a value: return (kind, parsed) where kind is "df", "flat", "list", "scalar", or "skip".'''
+    '''Classify a value: return (kind, parsed) where kind is
+    "df", "flat", "list", "scalar", or "skip".'''
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return 'skip', None
     # Native Python dicts/lists (from in-memory log) — no JSON parsing needed.
     if isinstance(val, dict):
-        if 'columns' in val or 'index' in val:
-            return 'df', val
-        return 'flat', val
+        kind = 'df' if ('columns' in val or 'index' in val) else 'flat'
+        return kind, val
     if isinstance(val, list):
         return 'list', val
     # String values (from CSV on-disk log) — may be JSON-encoded.
@@ -189,9 +190,8 @@ def _classify_value(val):
         try:
             parsed = json.loads(val_str)
             if isinstance(parsed, dict):
-                if 'columns' in parsed or 'index' in parsed:
-                    return 'df', parsed
-                return 'flat', parsed
+                kind = 'df' if ('columns' in parsed or 'index' in parsed) else 'flat'
+                return kind, parsed
             if isinstance(parsed, list):
                 return 'list', parsed
         except (ValueError, TypeError):
@@ -259,6 +259,37 @@ def _merge_disk(stack, name, mem_df, start_ts=None):
         return mem_df
 
 
+def _accumulate_value(kind, parsed, prefixed_key, ts, val, flat_cols, df_data):
+    '''Update flat_cols/df_data in-place for one (ts, val) observation.'''
+    if kind == 'df':
+        iso = ts.isoformat()
+        if iso not in df_data:
+            df_data[iso] = {}
+        df_data[iso][prefixed_key] = parsed
+        return True
+    if kind == 'flat':
+        for sub_k, sub_v in parsed.items():
+            if not _is_numeric(sub_v):
+                continue
+            col = prefixed_key + '.' + sub_k
+            if col not in flat_cols:
+                flat_cols[col] = {}
+            flat_cols[col][ts] = sub_v
+    elif kind == 'list':
+        for idx, sub_v in enumerate(parsed):
+            if not _is_numeric(sub_v):
+                continue
+            col = prefixed_key + '.' + str(idx)
+            if col not in flat_cols:
+                flat_cols[col] = {}
+            flat_cols[col][ts] = sub_v
+    else:
+        if prefixed_key not in flat_cols:
+            flat_cols[prefixed_key] = {}
+        flat_cols[prefixed_key][ts] = val
+    return False
+
+
 def gather_outputs(stack, name, keys, start=None, end=None):
     '''Build flat and DataFrame output tables for one controller.
 
@@ -272,11 +303,9 @@ def gather_outputs(stack, name, keys, start=None, end=None):
     dfs = stack.log_to_df()
     mem_df = dfs.get(name, pd.DataFrame())
 
-    # Determine in-memory time bounds
     mem_start = mem_df.index.min() if not mem_df.empty else None
     start_ts = pd.Timestamp(start) if start is not None else None
 
-    # Load from disk when requested start is earlier than in-memory data (or memory is empty)
     if start_ts is not None and (mem_start is None or start_ts < mem_start):
         src = _merge_disk(stack, name, mem_df, start_ts=start_ts)
     else:
@@ -294,11 +323,7 @@ def gather_outputs(stack, name, keys, start=None, end=None):
     df_data = {}
 
     for prefixed_key in keys:
-        # Keys arrive as "input.xxx" or "output.xxx"; strip prefix to look up column
-        if '.' in prefixed_key:
-            col_name = prefixed_key.split('.', 1)[1]
-        else:
-            col_name = prefixed_key
+        col_name = prefixed_key.split('.', 1)[1] if '.' in prefixed_key else prefixed_key
         if col_name not in src.columns:
             continue
         is_df_key = False
@@ -306,32 +331,10 @@ def gather_outputs(stack, name, keys, start=None, end=None):
             kind, parsed = _classify_value(val)
             if kind == 'skip':
                 continue
-            if kind == 'df':
-                is_df_key = True
-                iso = ts.isoformat()
-                if iso not in df_data:
-                    df_data[iso] = {}
-                df_data[iso][prefixed_key] = parsed
-            elif kind == 'flat':
-                for sub_k, sub_v in parsed.items():
-                    if not _is_numeric(sub_v):
-                        continue
-                    col = prefixed_key + '.' + sub_k
-                    if col not in flat_cols:
-                        flat_cols[col] = {}
-                    flat_cols[col][ts] = sub_v
-            elif kind == 'list':
-                for idx, sub_v in enumerate(parsed):
-                    if not _is_numeric(sub_v):
-                        continue
-                    col = prefixed_key + '.' + str(idx)
-                    if col not in flat_cols:
-                        flat_cols[col] = {}
-                    flat_cols[col][ts] = sub_v
-            elif not is_df_key:
-                if prefixed_key not in flat_cols:
-                    flat_cols[prefixed_key] = {}
-                flat_cols[prefixed_key][ts] = val
+            if kind != 'scalar' or not is_df_key:
+                is_df_key = _accumulate_value(
+                    kind, parsed, prefixed_key, ts, val, flat_cols, df_data
+                ) or is_df_key
 
     flat_df = pd.DataFrame(flat_cols) if flat_cols else pd.DataFrame()
     flat_df.index.name = 'datetime'
