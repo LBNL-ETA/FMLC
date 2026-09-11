@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 DONE_MSGS = ['Done.', 'Waiting to initialize.', 'Initialize FMLC.']
+DTM_FMT = '%Y-%m-%d %H:%M:%S'
 
 LOG_LEVEL_MAP = {
     1: logging.DEBUG,

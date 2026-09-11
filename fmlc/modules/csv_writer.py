@@ -17,6 +17,7 @@ import time
 import pandas as pd
 
 from fmlc.baseclasses import eFMU
+from fmlc.utility import DTM_FMT
 
 
 class LocalCsvWriter(eFMU):
@@ -48,7 +49,7 @@ class LocalCsvWriter(eFMU):
                 file_path = self.input["file-path"]
                 append_mode = bool(self.input["append"])
 
-                data.index = data.index.strftime("%Y-%m-%d %H:%M:%S")
+                data.index = data.index.strftime(DTM_FMT)
 
                 if append_mode:
                     file_exists = os.path.exists(file_path)
@@ -56,9 +57,10 @@ class LocalCsvWriter(eFMU):
                         file_path,
                         mode="a" if file_exists else "w",
                         header=not file_exists,
+                        date_format=DTM_FMT,
                     )
                 else:
-                    data.to_csv(file_path)
+                    data.to_csv(file_path, date_format=DTM_FMT)
         except Exception as e:
             msg += str(e)
 
