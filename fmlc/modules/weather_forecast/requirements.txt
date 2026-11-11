@@ -2,3 +2,5 @@ pygrib
 requests
 numpy
 pvlib
+netCDF4
+
