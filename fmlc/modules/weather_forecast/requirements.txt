@@ -3,4 +3,5 @@ requests
 numpy
 pvlib
 netCDF4
+siphon
 
