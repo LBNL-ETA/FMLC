@@ -1,4 +1,6 @@
 pandas
+pvlib
 requests
 numpy
 flask
+pymodbus>=3.10.0

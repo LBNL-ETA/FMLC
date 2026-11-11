@@ -19,6 +19,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install pytest
         pip install .
+        pip install -r fmlc/modules/weather_forecast/requirements.txt
+        pip install -r fmlc/modules/box/requirements.txt
+        pip install -r fmlc/modules/skyspark/requirements.txt
     - name: Test with pytest
       run: |
         pytest -rx
